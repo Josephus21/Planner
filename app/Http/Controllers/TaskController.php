@@ -35,6 +35,13 @@ class TaskController extends Controller
         return redirect()->route('tasks.index')->with('success', 'Task created successfully.');
     }
 
+    public function show(Task $task)
+    {
+        
+
+        return view('tasks.show', compact('task'));
+    }
+
     public function edit(Task $task)
     {
         $employees = Employee::all();
@@ -55,6 +62,20 @@ class TaskController extends Controller
         $task->update($validated);
 
         return redirect()->route('tasks.index')->with('success', 'Task updated successfully.');
+    }
+
+    public function done(int $id){
+        $task = Task::find($id);
+        $task->update(['status' => 'done']);
+        return redirect()->route('tasks.index')->with('success', 'Task marked as done successfully.');
+
+    }
+
+    public function pending(int $id){
+        $task = Task::find($id);
+        $task->update(['status' => 'pending']);
+        return redirect()->route('tasks.index')->with('success', 'Task marked as pending successfully.');
+
     }
 
     public function destroy(Task $task)

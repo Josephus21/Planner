@@ -71,12 +71,12 @@
                             </td>
                             
                             <td>
-                                <a href="" class="btn btn-info">View</a>
+                                <a href="{{ route('tasks.show', $task->id) }}" class="btn btn-info">View</a>
 
                                 @if($task->status == 'pending')
-                                    <a href="" class="btn btn-success btn-sm">Mark as Done</a>
+                                    <a href="{{ route('tasks.done', $task->id) }}" class="btn btn-success btn-sm">Mark as Done</a>
                                 @else
-                                    <a href="" class="btn btn-warning btn-sm">Mark as Pending</a>  
+                                    <a href="{{ route('tasks.pending', $task->id) }}" class="btn btn-warning btn-sm">Mark as Pending</a>  
                                 @endif
                                 <a href="{{ route('tasks.edit', $task->id) }}" class="btn btn-warning">Edit</a>
                                 <form action="{{ route('tasks.destroy', $task->id) }}" method="POST" style="display: inline-block;">
