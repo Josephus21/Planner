@@ -65,16 +65,16 @@
                             <td>{{ $employee->role->title }}</td>
                             <td>
                                 @if($employee->status == 'inactive')
-                                    <span class="text-warning">{{ $employee->status }}</span>
+                                    <span class="text-warning">{{ ucfirst($employee->status) }}</span>
                                 @elseif($employee->status == 'active')
-                                    <span class="text-success">{{ $employee->status }}</span>
+                                    <span class="text-success">{{ ucfirst($employee->status) }}</span>
                                 @else
                                     <span class="text-info">{{ $employee->status }}</span>
                                 @endif
                             </td>
 
                             <td>
-                                {{ $employee->salary }}
+                                {{ number_format($employee->salary) }}
                             </td>
                             <td>
                                 <a href="{{ route('employees.show', $employee->id) }}" class="btn btn-info btn-sm">View</a>
