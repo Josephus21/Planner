@@ -72,6 +72,7 @@
                                     <span class="text-info">{{ $employee->status }}</span>
                                 @endif
                             </td>
+                            
 
                             <td>
                                 {{ number_format($employee->salary) }}
