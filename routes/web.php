@@ -7,6 +7,7 @@ use App\Http\Controllers\TaskController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\PresenceController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -19,6 +20,9 @@ Route::resource('/employees', EmployeeController::class);
 
 // departments
 Route::resource('/departments', DepartmentController::class);
+
+// presences
+Route::resource('/presences', PresenceController::class);
 
 // Roles
 Route::resource('/roles', RoleController::class);
