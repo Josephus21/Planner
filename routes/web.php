@@ -15,35 +15,37 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+Route::middleware('auth')->group(function () {
+
 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
 // employees
-Route::resource('/employees', EmployeeController::class);
+Route::resource('/employees', EmployeeController::class)->middleware(['role:HR']);
 
 // departments
-Route::resource('/departments', DepartmentController::class);
+Route::resource('/departments', DepartmentController::class)->middleware(['role:HR']);
 
 // presences
-Route::resource('/presences', PresenceController::class);
+Route::resource('/presences', PresenceController::class)->middleware(['role:HR,Developer,Sales,Data Science']);
 
 // payrolls
-Route::resource('/payrolls', PayrollController::class);
+Route::resource('/payrolls', PayrollController::class)->middleware(['role:HR,Developer,Sales,Data Science']);
 
 // leave-requests
-Route::resource('/leave-requests', LeaveRequestController::class);
-Route::get('/leave-requests/confirm/{id}', [LeaveRequestController::class, 'confirm'])->name('leave-requests.confirm');
-Route::get('/leave-requests/reject/{id}', [LeaveRequestController::class, 'reject'])->name('leave-requests.reject');
+Route::resource('/leave-requests', LeaveRequestController::class)->middleware(['role:HR,Developer,Sales,Data Science']);
+Route::get('/leave-requests/confirm/{id}', [LeaveRequestController::class, 'confirm'])->name('leave-requests.confirm')->middleware(['role:HR']);
+Route::get('/leave-requests/reject/{id}', [LeaveRequestController::class, 'reject'])->name('leave-requests.reject')->middleware(['role:HR']);
 
 
 
 // Roles
-Route::resource('/roles', RoleController::class);
+Route::resource('/roles', RoleController::class)->middleware(['role:HR']);
 
 // tasks
-Route::resource('/tasks', TaskController::class);
-Route::get('/tasks/done/{id}', [TaskController::class, 'done'])->name('tasks.done');
-Route::get('/tasks/pending/{id}', [TaskController::class, 'pending'])->name('tasks.pending');
-
+Route::resource('/tasks', TaskController::class)->middleware(['role:HR,Developer,Sales,Data Science']);
+Route::get('/tasks/done/{id}', [TaskController::class, 'done'])->name('tasks.done')->middleware(['role:HR,Developer,Sales,Data Science']);
+Route::get('/tasks/pending/{id}', [TaskController::class, 'pending'])->name('tasks.pending')->middleware(['role:HR,Developer,Sales,Data Science']);
+});
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
