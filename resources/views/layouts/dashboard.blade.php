@@ -65,7 +65,7 @@
             @if (session('role') == 'HR')
             <li
                 class="sidebar-item active ">
-                <a href="index.html" class='sidebar-link'>
+                <a href="{{ '/dashboard' }}" class='sidebar-link'>
                     <i class="bi bi-grid-fill"></i>
                     <span>Dashboard</span>
                 </a>
@@ -74,7 +74,7 @@
             </li>
             <li
                 class="sidebar-item">
-                <a href="index.html" class='sidebar-link'>
+                <a href="{{ '/tasks' }}" class='sidebar-link'>
                     <i class="bi bi-check-circle-fill"></i>
                     <span>Tasks</span>
                 </a>
@@ -83,7 +83,7 @@
             </li>
             <li
                 class="sidebar-item">
-                <a href="index.html" class='sidebar-link'>
+                <a href="{{ '/employees' }}" class='sidebar-link'>
                     <i class="bi bi-people-fill"></i>
                     <span>employees</span>
                 </a>
@@ -92,7 +92,7 @@
             </li>
             <li
                 class="sidebar-item">
-                <a href="index.html" class='sidebar-link'>
+                <a href="{{ '/departments' }}" class='sidebar-link'>
                     <i class="bi bi-briefcase-fill"></i>
                     <span>departments</span>
                 </a>
@@ -101,7 +101,7 @@
             </li>
             <li
                 class="sidebar-item">
-                <a href="index.html" class='sidebar-link'>
+                <a href="{{ '/roles' }}" class='sidebar-link'>
                     <i class="bi bi-tag"></i>
                     <span>Roles</span>
                 </a>
@@ -110,7 +110,7 @@
             </li>
             <li
                 class="sidebar-item">
-                <a href="index.html" class='sidebar-link'>
+                <a href="{{ '/presences' }}" class='sidebar-link'>
                     <i class="bi bi-table"></i>
                     <span>Presences</span>
                 </a>
@@ -119,7 +119,7 @@
             </li>
             <li
                 class="sidebar-item">
-                <a href="index.html" class='sidebar-link'>
+                <a href="{{ '/payrolls' }}" class='sidebar-link'>
                     <i class="bi bi-currency-dollar"></i>
                     <span>Payrolls</span>
                 </a>
@@ -128,7 +128,7 @@
             </li>
             <li
                 class="sidebar-item">
-                <a href="index.html" class='sidebar-link'>
+                <a href="{{ '/leave-requests' }}" class='sidebar-link'>
                     <i class="bi bi-shift-fill"></i>
                     <span>Leave requests</span>
                 </a>
@@ -140,7 +140,7 @@
             @if(in_array(session('role'), ['Developer', 'Sales', 'Data Science']))
             <li
                 class="sidebar-item active ">
-                <a href="index.html" class='sidebar-link'>
+                <a href="{{ '/dashboard' }}" class='sidebar-link'>
                     <i class="bi bi-grid-fill"></i>
                     <span>Dashboard</span>
                 </a>
@@ -149,28 +149,28 @@
             </li>
                 <li
                     class="sidebar-item">
-                    <a href="index.html" class='sidebar-link'>
+                    <a href="{{ '/tasks' }}" class='sidebar-link'>
                         <i class="bi bi-check-circle-fill"></i>
                         <span>Tasks</span>
                     </a>
                 </li>
                 <li
                     class="sidebar-item">
-                    <a href="index.html" class='sidebar-link'>
+                    <a href="{{ '/presences' }}" class='sidebar-link'>
                         <i class="bi bi-table"></i>
                         <span>Presences</span>
                     </a>
                 </li>
                 <li
                     class="sidebar-item">
-                    <a href="index.html" class='sidebar-link'>
+                    <a href="{{ '/payrolls' }}" class='sidebar-link'>
                         <i class="bi bi-currency-dollar"></i>
                         <span>Payrolls</span>
                     </a>
                 </li>
                     <li
                 class="sidebar-item">
-                <a href="index.html" class='sidebar-link'>
+                <a href="{{ '/leave-requests' }}" class='sidebar-link'>
                     <i class="bi bi-shift-fill"></i>
                     <span>Leave requests</span>
                 </a>

@@ -36,7 +36,9 @@
             <div class="card-body">
 
             <div class="d-flex">
+                @if (session('role') == 'HR')
                 <a href="{{ route('tasks.create') }}" class="btn btn-primary mb-3 ms-auto">New Task</a>
+                @endif
             </div>
                 @if (session('success'))
                     <div class="alert alert-success">
@@ -78,12 +80,15 @@
                                 @else
                                     <a href="{{ route('tasks.pending', $task->id) }}" class="btn btn-warning btn-sm">Mark as Pending</a>  
                                 @endif
-                                <a href="{{ route('tasks.edit', $task->id) }}" class="btn btn-warning">Edit</a>
-                                <form action="{{ route('tasks.destroy', $task->id) }}" method="POST" style="display: inline-block;">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this task?')">Delete</button>
-                                </form>
+
+                                @if (session('role') == 'HR')
+                                    <a href="{{ route('tasks.edit', $task->id) }}" class="btn btn-warning">Edit</a>
+                                    <form action="{{ route('tasks.destroy', $task->id) }}" method="POST" style="display: inline-block;">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this task?')">Delete</button>
+                                    </form>
+                                @endif
                             </td>
                         </tr>
                         @endforeach
