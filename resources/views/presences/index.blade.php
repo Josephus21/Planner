@@ -52,7 +52,10 @@
                             <th>Status</th>
                             <th>Check In</th>
                             <th>Check Out</th>
+                            
+                            @if (session('role'=='HR'))
                             <th>Option</th>
+                            @endif
                         </tr>
                     </thead>
                     <tbody>
@@ -70,13 +73,15 @@
                             <td>{{ $presence->check_in }}</td>
                             <td>{{ $presence->check_out }}</td>
                             <td>
-                                <a href="{{ route('presences.edit', $presence->id) }}" class="btn btn-warning">Edit</a>
+                                @if (session('role'=='HR'))
+                                    <a href="{{ route('presences.edit', $presence->id) }}" class="btn btn-warning">Edit</a>
 
-                                <form action="{{ route('presences.destroy', $presence->id) }}" method="POST" style="display: inline-block;">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this presence?')">Delete</button>
-                                </form>
+                                    <form action="{{ route('presences.destroy', $presence->id) }}" method="POST" style="display: inline-block;">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this presence?')">Delete</button>
+                                    </form>
+                                @endif
                             </td>
                         </tr>
                         @endforeach

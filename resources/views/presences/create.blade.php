@@ -35,6 +35,7 @@
             </div>
             <div class="card-body">
 
+            @if (session('role')=='HR')
             <form action="{{ route('presences.store') }}" method="POST"> 
                 @csrf
 
@@ -95,12 +96,73 @@
                 <button type="submit" class="btn btn-primary">Submit</button>
                 <a href="{{ route('presences.index') }}" class="btn btn-secondary">Back to list</a>
             </form>
-                
+
+            @else
+                <form action="{{ route('presences.store') }}" method="POST">
+                    @csrf
+                    <div class="alert alert-danger">
+                        <b>izinkan akses lokasi</b>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="" class="form-label">Latitude</label>
+                        <input type="text" class="form-control" name="latitude" id="latitude" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="" class="form-label">Longitude</label>
+                        <input type="text" class="form-control" name="longitude" id="longitude" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <iframe width="500" height="300" framebroder="0" scrolling="no" marginwidth="0" marginheight="0"></iframe>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="presence-btn" >Presence</button>
+                </form>
+            @endif    
             </div>
         </div>
 
     </section>
 </div>
+
+<script>
+    const iframe = document.querySelector('iframe');
+    const officeLat =  -7.755012358785407;
+    const officeLng = 110.40820295519496;
+    const threshold = 0.01; 
+
+    navigator.geolocation.getCurrentPosition(function(position){
+        const userLat = position.coords.latitude;
+        const userLng = position.coords.longitude;
+            iframe.src = `https://maps.google.com/maps?q=${userLat},${userLng}&output=embed`;
+
+    });
+
+    document.addEventListener('DOMContentLoaded', (event) => {
+            if(navigator.geolocation){
+                navigator.geolocation.getCurrentPosition(function(position){
+                    const userLat = position.coords.latitude;
+                    const userLng = position.coords.longitude;
+
+                    document.getElementById('latitude').value = userLat;
+                    document.getElementById('longitude').value = userLng;
+
+                   const distance = Math.sqrt(Math.pow(userLat - officeLat, 2) + Math.pow(userLng - officeLng, 2));
+                    
+                   if(distance <= threshold){
+                        alert('You are within the office area. You can presence now.');
+                        document.getElementById('presence-btn').removeAttribute('disabled');
+                   }else{
+                        alert('You are outside the office area. You cannot presence.');
+                   }     
+                });
+            }
+        });
+  
+
+
+</script>
 
 
 @endsection
