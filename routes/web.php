@@ -42,7 +42,6 @@ use App\Http\Controllers\JobOrderDashboardController;
 
 use App\Http\Controllers\ManagerDashboardController;
 
-use App\Http\Controllers\SsoController;
 Route::get('/', function () {
     return view('auth.login');
 });
@@ -52,7 +51,7 @@ Route::get('/', function () {
 | AUTHENTICATED ROUTES
 |---------------------------------------------------------------------------
 */
-Route::get('/sso/login', [SsoController::class, 'loginWithToken'])->name('sso.login');
+
 
 Route::middleware(['auth'])->group(function () {
 

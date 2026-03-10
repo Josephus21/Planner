@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -20,16 +21,20 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // ✅ Connect your custom permission system to Laravel @can / Gate
+        if (app()->environment('production')) {
+            URL::forceScheme('https');
+        }
+
+        // Connect your custom permission system to Laravel @can / Gate
         Gate::before(function ($user, string $ability) {
 
-            // ✅ same bypass as your middleware
+            // same bypass as your middleware
             $role = $user->role ?? null;
             if (in_array($role, ['Developer', 'Admin'], true)) {
                 return true;
             }
 
-            // ✅ Use your custom permission checker
+            // Use your custom permission checker
             if (method_exists($user, 'hasPermission')) {
                 return $user->hasPermission($ability) ? true : null;
             }

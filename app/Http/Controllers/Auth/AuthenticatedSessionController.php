@@ -22,7 +22,7 @@ class AuthenticatedSessionController extends Controller
     }
 
     /**
-     * Handle an incoming authentication request.
+     * Handle login request.
      */
     public function store(LoginRequest $request): RedirectResponse
     {
@@ -34,7 +34,7 @@ class AuthenticatedSessionController extends Controller
 
         $plainToken = Str::random(64);
 
-        DB::connection('app2')->table('sso_tokens')->insert([
+        DB::table('sso_tokens')->insert([
             'email' => $user->email,
             'token' => hash('sha256', $plainToken),
             'expires_at' => now()->addMinutes(2),
@@ -47,14 +47,13 @@ class AuthenticatedSessionController extends Controller
     }
 
     /**
-     * Destroy an authenticated session.
+     * Logout
      */
     public function destroy(Request $request): RedirectResponse
     {
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();
-
         $request->session()->regenerateToken();
 
         return redirect('/');
