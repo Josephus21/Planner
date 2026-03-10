@@ -43,7 +43,7 @@ class AuthenticatedSessionController extends Controller
             'updated_at' => now(),
         ]);
 
-        return redirect()->away('http://localhost:8000/sso/login?token=' . $plainToken);
+        return redirect()->away(env('PLANNER_URL') . '/sso/login?token=' . $plainToken);
     }
 
     /**
