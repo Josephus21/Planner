@@ -13,9 +13,33 @@ class Role extends Model
     protected $fillable = [
         'title',
         'description',
-        
     ];
 
+    /**
+     * Many-to-many: roles <-> permissions
+     * Pivot table: role_permission (role_id, permission_id)
+     */
+    public function permissions()
+    {
+        return $this->belongsToMany(\App\Models\Permission::class, 'role_permission', 'role_id', 'permission_id')
+            ->withTimestamps();
+    }
 
+    /**
+     * One-to-many: role -> employees
+     * employees.role_id -> roles.id
+     */
+    public function employees()
+    {
+        return $this->hasMany(\App\Models\Employee::class, 'role_id', 'id');
+    }
 
+    /**
+     * Helper: quickly check if role has a permission key
+     */
+    public function hasPermission(string $key): bool
+    {
+        $this->loadMissing('permissions');
+        return $this->permissions->contains('key', $key);
+    }
 }

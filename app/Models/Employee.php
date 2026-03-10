@@ -23,14 +23,34 @@ class Employee extends Model
         'role_id'
     ];
 
-    public function department()
-    {
-        return $this->belongsTo(Department::class);
-    }
+ public function department()
+{
+    return $this->belongsTo(\App\Models\Department::class, 'department_id');
+}
 
-    public function role()
-    {
-        return $this->belongsTo(Role::class);
-    }
+   
+public function role()
+{
+    return $this->belongsTo(\App\Models\Role::class, 'role_id', 'id');
+}
+
+public function employee()
+{
+    return $this->belongsTo(\App\Models\Employee::class, 'employee_id', 'id');
+}
+
+public function attendanceLogs()
+{
+    return $this->hasMany(\App\Models\AttendanceLog::class);
+}
+public function deductions()
+{
+    return $this->hasMany(\App\Models\EmployeeDeduction::class);
+}
+public function tasks()
+{
+    return $this->hasMany(\App\Models\Task::class);
+}
+
 
 }

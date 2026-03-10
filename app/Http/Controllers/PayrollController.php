@@ -4,75 +4,91 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Payroll;
-use App\Models\Employee;
+use App\Models\PayrollPeriod;
+use App\Services\PayrollGenerator;
+
 class PayrollController extends Controller
 {
-    public function index()
+    /**
+     * Payroll Index (by period)
+     */
+    public function index(Request $request)
     {
-        $payrolls = Payroll::all();
-        return view('payrolls.index', compact('payrolls'));
+        // list all saved payroll periods
+        $periods = PayrollPeriod::orderByDesc('date_from')->get();
+
+        // pick selected period
+        if ($request->filled('period_id')) {
+            $selectedPeriod = PayrollPeriod::findOrFail($request->period_id);
+        } else {
+            $selectedPeriod = PayrollPeriod::orderByDesc('date_from')->first();
+        }
+
+        // get payroll rows for the period
+        $payrolls = $selectedPeriod
+            ? Payroll::with(['employee', 'items'])
+                ->where('payroll_period_id', $selectedPeriod->id)
+                ->orderByRaw('net_pay DESC')
+                ->get()
+            : collect();
+
+        return view('payrolls.index', compact('periods', 'selectedPeriod', 'payrolls'));
     }
 
-    public function create()
+    /**
+     * Generate / Recompute payroll (semi-monthly but flexible)
+     * Takes date_from and date_to, creates a period if not exists, then computes payroll.
+     */
+    public function generate(Request $request, PayrollGenerator $generator)
     {
-        $employees = Employee::all();
-        return view('payrolls.create', compact('employees'));
-    }
-
-    public function store(Request $request)
-    {
-        $request->validate([
-            'employee_id' => 'required|exists:employees,id',
-            'amount' => 'required|numeric',
-            'bonuses' => 'nullable|numeric',
-            'deductions' => 'nullable|numeric',
-            'pay_date' => 'required|date',
+        $validated = $request->validate([
+            'date_from' => ['required', 'date'],
+            'date_to'   => ['required', 'date', 'after_or_equal:date_from'],
         ]);
 
-        $netsalary = ($request->input('amount') + $request->input('bonuses', 0)) - $request->input('deductions', 0);
-
-        $request->merge(['net_salary' => $netsalary]);
-        Payroll::create($request->all());
-
-        return redirect()->route('payrolls.index')->with('success', 'Payroll record created successfully.');
-    }
-
-    public function edit(Payroll $payroll)
-    {
-        
-        $employees = Employee::all();
-        return view('payrolls.edit', compact('payroll', 'employees'));
-    }
-
-    public function update(Request $request, Payroll $payroll)
-    {
-        $request->validate([
-            'employee_id' => 'required|exists:employees,id',
-            'amount' => 'required|numeric',
-            'bonuses' => 'nullable|numeric',
-            'deductions' => 'nullable|numeric',
-            'pay_date' => 'required|date',
+        $period = PayrollPeriod::firstOrCreate([
+            'date_from' => $validated['date_from'],
+            'date_to'   => $validated['date_to'],
         ]);
 
-        $netsalary = ($request->input('amount') + $request->input('bonuses', 0)) - $request->input('deductions', 0);
+        // Prevent recompute if posted/locked
+        if ($period->status === 'posted') {
+            return redirect()
+                ->route('payrolls.index', ['period_id' => $period->id])
+                ->withErrors(['period' => 'This payroll period is already POSTED and cannot be recomputed.']);
+        }
 
-        $request->merge(['net_salary' => $netsalary]);
-        $payroll->update($request->all());
+        $generator->generate($period);
 
-        return redirect()->route('payrolls.index')->with('success', 'Payroll record updated successfully.');
+        return redirect()
+            ->route('payrolls.index', ['period_id' => $period->id])
+            ->with('success', 'Payroll generated successfully.');
     }
 
+    /**
+     * View a single payroll record (with breakdown)
+     */
     public function show(Payroll $payroll)
     {
+        $payroll->load(['employee', 'items', 'period']);
         return view('payrolls.show', compact('payroll'));
     }
 
-
+    /**
+     * Delete payroll record (optional)
+     */
     public function destroy(Payroll $payroll)
     {
+        // block delete if period posted
+        if ($payroll->period && $payroll->period->status === 'posted') {
+            return back()->withErrors(['delete' => 'Cannot delete payroll from a POSTED period.']);
+        }
+
+        $periodId = $payroll->payroll_period_id;
         $payroll->delete();
-        return redirect()->route('payrolls.index')->with('success', 'Payroll record deleted successfully.');
+
+        return redirect()
+            ->route('payrolls.index', ['period_id' => $periodId])
+            ->with('success', 'Payroll record deleted successfully.');
     }
-
-
 }

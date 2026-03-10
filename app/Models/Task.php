@@ -18,9 +18,15 @@ class Task extends Model
         'status',
     ];
 
-    public function employee()
+      public function employee(): BelongsTo
     {
-        return $this->belongsTo(Employee::class, 'assigned_to');
+        return $this->belongsTo(Employee::class);
     }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
 
 }

@@ -13,13 +13,18 @@ class DatabaseSeeder extends Seeder
     /**
      * Seed the application's database.
      */
-    public function run(): void
-    {
-        // User::factory(10)->create();
+  public function run(): void
+{
+    $types = [
+        ['name' => 'SSS', 'code' => 'SSS'],
+        ['name' => 'PhilHealth', 'code' => 'PHIC'],
+        ['name' => 'Insurance', 'code' => 'INS'],
+        ['name' => 'Loan', 'code' => 'LOAN'],
+        ['name' => 'Others', 'code' => 'OTH'],
+    ];
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+    foreach ($types as $t) {
+        \App\Models\DeductionType::firstOrCreate(['code' => $t['code']], $t);
     }
+}
 }

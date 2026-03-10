@@ -28,6 +28,19 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'gsuite' => [
+    'base_url'   => env('GSUITE_API_BASE_URL', 'http://gsuite.graphicstar.com.ph/api'),
+    'token'      => env('GSUITE_API_TOKEN'),
+    'employee_pk'=> env('GSUITE_EMPLOYEE_PK'),
+    'prepared_by'=> env('GSUITE_PREPARED_BY', 'System'),
+    'timeout'    => (int) env('GSUITE_TIMEOUT', 30),
+
+    'allowed_syspk_job' => [
+        '41342b80-2ed2-11eb-b09a-b3cd80c3d9e0',
+        '3ee3b470-79d4-11eb-abaf-399f73b215fe',
+    ],
+],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
