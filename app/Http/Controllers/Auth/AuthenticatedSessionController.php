@@ -7,8 +7,6 @@ use App\Http\Requests\Auth\LoginRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class AuthenticatedSessionController extends Controller
@@ -32,18 +30,12 @@ class AuthenticatedSessionController extends Controller
 
         $user = Auth::user();
 
-        $plainToken = Str::random(64);
+        // Redirect based on role/permission
+        if ($user->can('dashboard.view')) {
+            return redirect()->route('dashboard');
+        }
 
-        DB::table('sso_tokens')->insert([
-            'email' => $user->email,
-            'token' => hash('sha256', $plainToken),
-            'expires_at' => now()->addMinutes(2),
-            'used' => false,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        return redirect()->away(env('PLANNER_URL') . '/sso/login?token=' . $plainToken);
+        return redirect()->route('employee.dashboard');
     }
 
     /**
