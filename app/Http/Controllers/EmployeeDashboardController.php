@@ -46,19 +46,22 @@ class EmployeeDashboardController extends Controller
         $workDaysPerMonth = (int) ($employee->work_days_per_month ?? 26);
         $workHoursPerDay  = (float) ($employee->work_hours_per_day ?? 8);
 
-        // totals from logs
         $daysPresent = 0;
-        $minutesWorked = 0;
+$minutesWorked = 0;
 
-        foreach ($monthLogs as $log) {
-            $isAbsent = (bool) ($log->is_absent ?? false);
+foreach ($monthLogs as $log) {
+    $hasWorkedMinutes = (int) ($log->minutes_worked ?? 0) > 0;
+    $hasTimeIn = !empty($log->time_in);
+    $hasTimeOut = !empty($log->time_out);
+    $isAbsent = (bool) ($log->is_absent ?? false);
 
-            if (!$isAbsent) {
-                $daysPresent++;
-            }
+    // Count present only if there is actual attendance
+    if (!$isAbsent && ($hasWorkedMinutes || $hasTimeIn || $hasTimeOut)) {
+        $daysPresent++;
+    }
 
-            $minutesWorked += (int) ($log->minutes_worked ?? 0);
-        }
+    $minutesWorked += (int) ($log->minutes_worked ?? 0);
+}
 
         // Compute hourly rate (same logic as your PayrollGenerator)
         $hourlyRate = $this->computeHourlyRate($salaryType, $salaryAmount, $workDaysPerMonth, $workHoursPerDay);
