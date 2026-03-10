@@ -192,11 +192,11 @@ class PermissionSeeder extends Seeder
             ['key' => 'users.manage', 'label' => 'Manage Users & Permissions'],
         ];
 
-        foreach ($perms as $p) {
-            Permission::updateOrCreate(
-                ['key' => $p['key']],
-                ['label' => $p['label']]
-            );
-        }
+       foreach ($perms as $p) {
+    Permission::updateOrCreate(
+        ['name' => $p['key']],
+        ['label' => $p['label']]
+    );
+}
     }
 }
