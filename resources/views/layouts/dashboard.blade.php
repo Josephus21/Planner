@@ -80,7 +80,7 @@
             <div class="sidebar-header position-relative">
                 <div class="d-flex justify-content-between align-items-center">
                    <div class="logo text-center">
-    <a href="http://192.168.0.105:3000"
+    <a href="{{ route('dashboard') }}"
        class="d-flex align-items-center justify-content-center text-decoration-none user-switch">
 
         <div class="avatar bg-primary text-white me-2">
