@@ -75,79 +75,78 @@ class AttendanceReportController extends Controller
             $query->where('al.employee_id', '=', $myEmployeeId);
         }
 
-        $rows = $query
-            ->select([
-                'al.id',
-                'al.work_date',
-                'e.id as employee_id',
-                'e.fullname',
-                's.name as schedule_name',
+       $rows = $query
+    ->select([
+        'al.id',
+        'al.work_date',
+        'e.id as employee_id',
+        'e.fullname',
+        's.name as schedule_name',
 
-                'al.time_in',
-                'al.break_out',
-                'al.break_in',
-                'al.lunch_out',
-                'al.lunch_in',
-                'al.time_out',
+        'al.time_in',
+        'al.time_in_location',
 
-                's.start_time',
-                's.break_start',
-                's.break_end',
-                's.lunch_start',
-                's.lunch_end',
-                's.end_time',
+        'al.break_out',
+        'al.break_in',
 
-                // Minutes late = time_in - scheduled start_time
-                DB::raw("
-                    CASE
-                      WHEN al.time_in is null OR s.start_time is null THEN null
-                      ELSE TIMESTAMPDIFF(MINUTE, CONCAT(al.work_date,' ', s.start_time), al.time_in)
-                    END as late_minutes
-                "),
+        'al.lunch_out',
+        'al.lunch_in',
 
-                // Actual break minutes
-                DB::raw("
-                    CASE
-                      WHEN al.break_out is null OR al.break_in is null THEN null
-                      ELSE TIMESTAMPDIFF(MINUTE, al.break_out, al.break_in)
-                    END as break_minutes
-                "),
+        'al.time_out',
+        'al.time_out_location',
 
-                // Scheduled break minutes
-                DB::raw("
-                    CASE
-                      WHEN s.break_start is null OR s.break_end is null THEN null
-                      ELSE TIMESTAMPDIFF(MINUTE, CONCAT(al.work_date,' ', s.break_start), CONCAT(al.work_date,' ', s.break_end))
-                    END as sched_break_minutes
-                "),
+        's.start_time',
+        's.break_start',
+        's.break_end',
+        's.lunch_start',
+        's.lunch_end',
+        's.end_time',
 
-                // Actual lunch minutes
-                DB::raw("
-                    CASE
-                      WHEN al.lunch_out is null OR al.lunch_in is null THEN null
-                      ELSE TIMESTAMPDIFF(MINUTE, al.lunch_out, al.lunch_in)
-                    END as lunch_minutes
-                "),
+        DB::raw("
+            CASE
+              WHEN al.time_in is null OR s.start_time is null THEN null
+              ELSE TIMESTAMPDIFF(MINUTE, CONCAT(al.work_date,' ', s.start_time), al.time_in)
+            END as late_minutes
+        "),
 
-                // Scheduled lunch minutes
-                DB::raw("
-                    CASE
-                      WHEN s.lunch_start is null OR s.lunch_end is null THEN null
-                      ELSE TIMESTAMPDIFF(MINUTE, CONCAT(al.work_date,' ', s.lunch_start), CONCAT(al.work_date,' ', s.lunch_end))
-                    END as sched_lunch_minutes
-                "),
+        DB::raw("
+            CASE
+              WHEN al.break_out is null OR al.break_in is null THEN null
+              ELSE TIMESTAMPDIFF(MINUTE, al.break_out, al.break_in)
+            END as break_minutes
+        "),
 
-                // Minutes undertime (early out) = scheduled end - time_out (if time_out earlier)
-                DB::raw("
-                    CASE
-                      WHEN al.time_out is null OR s.end_time is null THEN null
-                      ELSE TIMESTAMPDIFF(MINUTE, al.time_out, CONCAT(al.work_date,' ', s.end_time))
-                    END as undertime_minutes
-                "),
-            ])
-            ->orderBy('al.work_date')
-            ->orderBy('e.fullname')
-            ->get();
+        DB::raw("
+            CASE
+              WHEN s.break_start is null OR s.break_end is null THEN null
+              ELSE TIMESTAMPDIFF(MINUTE, CONCAT(al.work_date,' ', s.break_start), CONCAT(al.work_date,' ', s.break_end))
+            END as sched_break_minutes
+        "),
+
+        DB::raw("
+            CASE
+              WHEN al.lunch_out is null OR al.lunch_in is null THEN null
+              ELSE TIMESTAMPDIFF(MINUTE, al.lunch_out, al.lunch_in)
+            END as lunch_minutes
+        "),
+
+        DB::raw("
+            CASE
+              WHEN s.lunch_start is null OR s.lunch_end is null THEN null
+              ELSE TIMESTAMPDIFF(MINUTE, CONCAT(al.work_date,' ', s.lunch_start), CONCAT(al.work_date,' ', s.lunch_end))
+            END as sched_lunch_minutes
+        "),
+
+        DB::raw("
+            CASE
+              WHEN al.time_out is null OR s.end_time is null THEN null
+              ELSE TIMESTAMPDIFF(MINUTE, al.time_out, CONCAT(al.work_date,' ', s.end_time))
+            END as undertime_minutes
+        "),
+    ])
+    ->orderBy('al.work_date')
+    ->orderBy('e.fullname')
+    ->get();
 
         // Compute flags + summary in PHP
         $report = $rows->map(function ($r) use ($lateGraceMinutes, $overbreakGrace, $overlunchGrace) {
