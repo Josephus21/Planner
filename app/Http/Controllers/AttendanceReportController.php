@@ -33,7 +33,7 @@ class AttendanceReportController extends Controller
                 'e.company_id',
                 'e.department_id',
                 'r.title as role_title',
-                'd.title as department_title',
+                'd.name as department_title',
             ])
             ->first();
 
