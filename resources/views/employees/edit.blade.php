@@ -114,18 +114,62 @@
             </div>
 
 <div class="mb-3">
-    <label for="company_id" class="form-label">Company</label>
-   <select name="company_id" class="form-control" required>
-    @foreach($companies as $company)
-        <option value="{{ $company->id }}">{{ $company->name }}</option>
-    @endforeach
-</select>
+    <label class="form-label">Primary Company</label>
 
-<select name="company_ids[]" class="form-control" multiple required>
-    @foreach($companies as $company)
-        <option value="{{ $company->id }}">{{ $company->name }}</option>
-    @endforeach
-</select>
+    <select name="company_id"
+            class="form-control @error('company_id') is-invalid @enderror"
+            required>
+
+        <option value="">Select Primary Company</option>
+
+        @foreach($companies as $company)
+            <option value="{{ $company->id }}"
+                {{ (string)old('company_id', $employee->company_id) === (string)$company->id ? 'selected' : '' }}>
+                {{ $company->name }}
+            </option>
+        @endforeach
+
+    </select>
+
+    @error('company_id')
+        <div class="invalid-feedback">{{ $message }}</div>
+    @enderror
+</div>
+
+
+<div class="mb-3">
+    <label class="form-label">Assigned Companies</label>
+
+    @php
+        $selectedCompanies = old(
+            'company_ids',
+            isset($employee) ? $employee->companies->pluck('id')->toArray() : []
+        );
+    @endphp
+
+    <div class="row">
+        @foreach($companies as $company)
+            <div class="col-md-4 mb-2">
+
+                <div class="form-check">
+
+                    <input type="checkbox"
+                           class="form-check-input"
+                           name="company_ids[]"
+                           value="{{ $company->id }}"
+                           id="company_{{ $company->id }}"
+                           {{ in_array($company->id, $selectedCompanies) ? 'checked' : '' }}>
+
+                    <label class="form-check-label" for="company_{{ $company->id }}">
+                        {{ $company->name }}
+                    </label>
+
+                </div>
+
+            </div>
+        @endforeach
+    </div>
+
 </div>
 
             <div class="mb-3">
