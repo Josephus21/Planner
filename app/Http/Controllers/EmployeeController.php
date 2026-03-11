@@ -20,38 +20,37 @@ use App\Models\EmployeeDeduction;
 
 class EmployeeController extends Controller
 {
-    public function index()
-    {
-        $user = auth()->user();
+   public function index()
+{
+    $user = auth()->user();
 
-        $myEmployee = Employee::with(['role', 'companies'])->find($user->employee_id);
+    $myEmployee = Employee::with(['role', 'companies'])->find($user->employee_id);
 
-        if (!$myEmployee) {
-            return back()->withErrors([
-                'employee' => 'Your account is not linked to an employee record.',
-            ]);
-        }
-
-        $roleTitle = strtolower(trim($myEmployee->role->title ?? ''));
-        $myCompanyId = $myEmployee->company_id;
-
-        $query = Employee::with(['company', 'companies', 'department', 'role']);
-
-        // Developer can see all companies
-        if ($roleTitle !== 'developer') {
-            $query->where(function ($q) use ($myCompanyId) {
-                $q->where('company_id', $myCompanyId)
-                  ->orWhereHas('companies', function ($sub) use ($myCompanyId) {
-                      $sub->where('companies.id', $myCompanyId);
-                  });
-            });
-        }
-
-        $employees = $query->get();
-
-        return view('employees.index', compact('employees'));
+    if (!$myEmployee) {
+        return back()->withErrors([
+            'employee' => 'Your account is not linked to an employee record.',
+        ]);
     }
 
+    $roleTitle = strtolower(trim($myEmployee->role->title ?? ''));
+    $accessibleCompanyIds = $this->getAccessibleCompanyIds($myEmployee);
+
+    $query = Employee::with(['company', 'companies', 'department', 'role']);
+
+    // Developer can see all companies
+    if ($roleTitle !== 'developer') {
+        $query->where(function ($q) use ($accessibleCompanyIds) {
+            $q->whereIn('company_id', $accessibleCompanyIds)
+              ->orWhereHas('companies', function ($sub) use ($accessibleCompanyIds) {
+                  $sub->whereIn('companies.id', $accessibleCompanyIds);
+              });
+        });
+    }
+
+    $employees = $query->get();
+
+    return view('employees.index', compact('employees'));
+}
     public function create()
     {
         $user = auth()->user();
