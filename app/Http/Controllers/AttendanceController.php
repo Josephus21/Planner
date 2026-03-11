@@ -127,12 +127,22 @@ class AttendanceController extends Controller
             ]);
         }
 
+        $latitude = isset($data['latitude']) ? (float) $data['latitude'] : null;
+        $longitude = isset($data['longitude']) ? (float) $data['longitude'] : null;
+        $accuracy = isset($data['accuracy']) ? (float) $data['accuracy'] : null;
+
+        $locationName = null;
+        if (!is_null($latitude) && !is_null($longitude)) {
+            $locationName = $this->getLocationName($latitude, $longitude);
+        }
+
         $log->{$action} = $now;
 
         // Save location per action
-        $log->{$action . '_latitude'} = $data['latitude'] ?? null;
-        $log->{$action . '_longitude'} = $data['longitude'] ?? null;
-        $log->{$action . '_accuracy'} = $data['accuracy'] ?? null;
+        $log->{$action . '_latitude'} = $latitude;
+        $log->{$action . '_longitude'} = $longitude;
+        $log->{$action . '_accuracy'} = $accuracy;
+        $log->{$action . '_location'} = $locationName;
         $log->{$action . '_ip_address'} = $request->ip();
 
         $log->save();
@@ -142,7 +152,63 @@ class AttendanceController extends Controller
         return back()->with(
             'success',
             strtoupper(str_replace('_', ' ', $action)) . ' recorded at ' . $now->format('h:i A')
+            . ($locationName ? ' - Location: ' . $locationName : '')
         );
+    }
+
+    private function getLocationName(float $lat, float $lng): ?string
+    {
+        try {
+            $url = "https://nominatim.openstreetmap.org/reverse?lat={$lat}&lon={$lng}&format=json&addressdetails=1";
+
+            $opts = [
+                "http" => [
+                    "method" => "GET",
+                    "header" => "User-Agent: AttendanceSystem/1.0\r\n"
+                ]
+            ];
+
+            $context = stream_context_create($opts);
+            $response = @file_get_contents($url, false, $context);
+
+            if ($response === false) {
+                return null;
+            }
+
+            $data = json_decode($response, true);
+
+            if (!is_array($data) || !isset($data['address'])) {
+                return null;
+            }
+
+            $address = $data['address'];
+
+            $city =
+                $address['city'] ??
+                $address['town'] ??
+                $address['municipality'] ??
+                $address['village'] ??
+                $address['county'] ??
+                null;
+
+            $state = $address['state'] ?? null;
+
+            if ($city && $state) {
+                return $city . ', ' . $state;
+            }
+
+            if ($city) {
+                return $city;
+            }
+
+            if (isset($data['display_name'])) {
+                return $data['display_name'];
+            }
+
+            return null;
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     /**
@@ -184,7 +250,6 @@ class AttendanceController extends Controller
 
         $requiredMinutes = (int) round(((float) ($employee->work_hours_per_day ?? 8)) * 60);
 
-        // minutes_late
         $minutesLate = 0;
         if ($log->time_in && $scheduleStart) {
             $timeIn = $log->time_in instanceof Carbon
@@ -196,7 +261,6 @@ class AttendanceController extends Controller
             }
         }
 
-        // minutes_worked
         $minutesWorked = 0;
 
         if ($log->time_in) {
@@ -249,7 +313,6 @@ class AttendanceController extends Controller
             }
         }
 
-        // minutes_undertime
         $minutesUndertime = 0;
         if ($log->time_out) {
             $minutesUndertime = max(0, $requiredMinutes - $minutesWorked);

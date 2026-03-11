@@ -70,22 +70,23 @@
       <h5>Attendance Logs</h5>
     </div>
     <div class="card-body table-responsive">
-      <table class="table table-striped table-bordered">
+      <table class="table table-striped table-bordered align-middle">
         <thead>
           <tr>
             <th>Date</th>
 
-            {{-- ✅ Only developer sees Employee column --}}
             @if(!empty($canViewAll) && $canViewAll)
               <th>Employee</th>
             @endif
 
             <th>Schedule</th>
             <th>Time In</th>
+            <th>Time In Location</th>
             <th>Late (min)</th>
             <th>Break (min)</th>
             <th>Lunch (min)</th>
             <th>Time Out</th>
+            <th>Time Out Location</th>
             <th>Flags</th>
           </tr>
         </thead>
@@ -94,14 +95,20 @@
             <tr>
               <td>{{ \Carbon\Carbon::parse($r->work_date)->format('M d, Y') }}</td>
 
-              {{-- ✅ Only developer sees names --}}
               @if(!empty($canViewAll) && $canViewAll)
                 <td>{{ $r->fullname }}</td>
               @endif
 
               <td>{{ $r->schedule_name ?? '-' }}</td>
 
-              <td>{{ $r->time_in ? \Carbon\Carbon::parse($r->time_in)->format('h:i A') : '---' }}</td>
+              <td>
+                {{ $r->time_in ? \Carbon\Carbon::parse($r->time_in)->format('h:i A') : '---' }}
+              </td>
+
+              <td>
+                {{ $r->time_in_location ?? '---' }}
+              </td>
+
               <td>
                 @if(!is_null($r->late_minutes))
                   {{ $r->late_minutes }}
@@ -113,7 +120,13 @@
               <td>{{ is_null($r->break_minutes) ? '---' : $r->break_minutes }}</td>
               <td>{{ is_null($r->lunch_minutes) ? '---' : $r->lunch_minutes }}</td>
 
-              <td>{{ $r->time_out ? \Carbon\Carbon::parse($r->time_out)->format('h:i A') : '---' }}</td>
+              <td>
+                {{ $r->time_out ? \Carbon\Carbon::parse($r->time_out)->format('h:i A') : '---' }}
+              </td>
+
+              <td>
+                {{ $r->time_out_location ?? '---' }}
+              </td>
 
               <td>
                 @php
@@ -136,10 +149,11 @@
             </tr>
           @empty
             @php
-              // colspan depends on whether employee column is shown
-              $colspan = (!empty($canViewAll) && $canViewAll) ? 9 : 8;
+              $colspan = (!empty($canViewAll) && $canViewAll) ? 11 : 10;
             @endphp
-            <tr><td colspan="{{ $colspan }}" class="text-center">No attendance logs found.</td></tr>
+            <tr>
+              <td colspan="{{ $colspan }}" class="text-center">No attendance logs found.</td>
+            </tr>
           @endforelse
         </tbody>
       </table>
