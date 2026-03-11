@@ -132,61 +132,118 @@ class EmployeeController extends Controller
         return view('employees.show', compact('employee'));
     }
 
-    public function edit($id)
-    {
-        $employee = Employee::with(['deductions', 'company'])->findOrFail($id);
+   public function edit($id)
+{
+    $user = auth()->user();
 
-        $companies = Company::where('status', 'active')->orderBy('name')->get();
-        $departments = Department::all();
-        $roles = Role::all();
-        $schedules = Schedule::orderBy('name')->get();
-        $deductionTypes = DeductionType::orderBy('name')->get();
+    $myEmployee = Employee::with('role')->find($user->employee_id);
 
-        $today = now()->toDateString();
-        $currentScheduleAssignment = EmployeeScheduleAssignment::with('schedule')
-            ->where('employee_id', $employee->id)
-            ->where('effective_from', '<=', $today)
-            ->where(function ($q) use ($today) {
-                $q->whereNull('effective_to')->orWhere('effective_to', '>=', $today);
-            })
-            ->latest('effective_from')
-            ->first();
-
-        return view('employees.edit', compact(
-            'employee',
-            'companies',
-            'departments',
-            'roles',
-            'schedules',
-            'currentScheduleAssignment',
-            'deductionTypes'
-        ));
+    if (!$myEmployee) {
+        return back()->withErrors([
+            'employee' => 'Your account is not linked to an employee record.',
+        ]);
     }
+
+    $roleTitle = strtolower(trim($myEmployee->role->title ?? ''));
+    $myCompanyId = $myEmployee->company_id;
+
+    $query = Employee::with([
+        'deductions',
+        'company',
+        'department',
+        'role',
+    ]);
+
+    // Developer can access all companies
+    if ($roleTitle !== 'developer') {
+        $query->where('company_id', $myCompanyId);
+    }
+
+    $employee = $query->findOrFail($id);
+
+    // Developer can choose all active companies
+    // Non-developer can only see own company in dropdown
+    $companies = $roleTitle === 'developer'
+        ? Company::where('status', 'active')->orderBy('name')->get()
+        : Company::where('id', $myCompanyId)->where('status', 'active')->orderBy('name')->get();
+
+    $departments = Department::orderBy('name')->get();
+    $roles = Role::orderBy('title')->get();
+    $schedules = Schedule::orderBy('name')->get();
+    $deductionTypes = DeductionType::orderBy('name')->get();
+
+    $today = now()->toDateString();
+
+    $currentScheduleAssignment = EmployeeScheduleAssignment::with('schedule')
+        ->where('employee_id', $employee->id)
+        ->where('effective_from', '<=', $today)
+        ->where(function ($q) use ($today) {
+            $q->whereNull('effective_to')
+              ->orWhere('effective_to', '>=', $today);
+        })
+        ->latest('effective_from')
+        ->first();
+
+    return view('employees.edit', compact(
+        'employee',
+        'companies',
+        'departments',
+        'roles',
+        'schedules',
+        'currentScheduleAssignment',
+        'deductionTypes'
+    ));
+}
 
     public function update(Request $request, $id)
-    {
-       $validatedData = $request->validate([
-    'fullname' => 'required|string|max:255',
-    'email' => 'required|email',
-    'phone_number' => 'required|string|max:20',
-    'address' => 'nullable|string',
-    'birth_date' => 'required|date',
-    'hire_date' => 'required|date',
-    'company_id' => 'required|exists:companies,id',
-    'department_id' => 'required|exists:departments,id',
-    'role_id' => 'required|exists:roles,id',
-    'status' => 'required|string',
-    'salary' => 'required|numeric',
-    'deductions' => 'array',
-]);
+{
+    $user = auth()->user();
 
-        $employee = Employee::findOrFail($id);
-        $employee->update($validatedData);
+    $myEmployee = Employee::with('role')->find($user->employee_id);
 
-        $this->syncEmployeeDeductions($employee, $request->input('deductions', []));
-
-        return redirect()->route('employees.index')->with('success', 'Employee updated successfully.');
+    if (!$myEmployee) {
+        return back()->withErrors([
+            'employee' => 'Your account is not linked to an employee record.',
+        ]);
     }
+
+    $roleTitle = strtolower(trim($myEmployee->role->title ?? ''));
+    $myCompanyId = $myEmployee->company_id;
+
+    $query = Employee::query();
+
+    if ($roleTitle !== 'developer') {
+        $query->where('company_id', $myCompanyId);
+    }
+
+    $employee = $query->findOrFail($id);
+
+    $validatedData = $request->validate([
+        'fullname' => 'required|string|max:255',
+        'email' => 'required|email',
+        'phone_number' => 'required|string|max:20',
+        'address' => 'nullable|string',
+        'birth_date' => 'required|date',
+        'hire_date' => 'required|date',
+        'company_id' => 'required|exists:companies,id',
+        'department_id' => 'required|exists:departments,id',
+        'role_id' => 'required|exists:roles,id',
+        'status' => 'required|string',
+        'salary' => 'required|numeric',
+        'deductions' => 'array',
+    ]);
+
+    // Non-developer cannot move employee to another company
+    if ($roleTitle !== 'developer') {
+        $validatedData['company_id'] = $myCompanyId;
+    }
+
+    $employee->update($validatedData);
+
+    $this->syncEmployeeDeductions($employee, $request->input('deductions', []));
+
+    return redirect()->route('employees.index')->with('success', 'Employee updated successfully.');
+}
 
     public function destroy($id)
     {
