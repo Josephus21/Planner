@@ -13,7 +13,6 @@ class AttendanceReportController extends Controller
     {
         $user = auth()->user();
 
-        // users.employee_id -> employees.id
         $myEmployeeId = $user->employee_id ? (int) $user->employee_id : null;
 
         if (!$myEmployeeId) {
@@ -23,30 +22,45 @@ class AttendanceReportController extends Controller
         }
 
         /**
-         * ✅ Role detection (your system):
-         * employees.role_id -> roles.title
+         * Get my employee info
          */
-        $roleTitle = DB::table('employees as e')
+        $me = DB::table('employees as e')
             ->leftJoin('roles as r', 'r.id', '=', 'e.role_id')
+            ->leftJoin('departments as d', 'd.id', '=', 'e.department_id')
             ->where('e.id', $myEmployeeId)
-            ->value('r.title'); // ex: "Developer"
+            ->select([
+                'e.id',
+                'e.company_id',
+                'e.department_id',
+                'r.title as role_title',
+                'd.title as department_title',
+            ])
+            ->first();
 
-             $deptTitle = DB::table('employees as e')
-            ->leftJoin('departments as r', 'r.id', '=', 'e.department_id')
-            ->where('e.id', $myEmployeeId)
-            ->value('r.title'); // ex: "Developer"
+        if (!$me) {
+            return back()->withErrors([
+                'employee' => 'Employee record not found.',
+            ]);
+        }
 
-        $roleNorm = Str::lower(trim((string) $roleTitle));
-        $deptNorm = Str::lower(trim((string) $deptTitle));
+        $roleNorm = Str::lower(trim((string) $me->role_title));
+        $deptNorm = Str::lower(trim((string) $me->department_title));
+        $myCompanyId = $me->company_id;
 
-        // Only Developer can view all employees
-        $canViewAll = $roleNorm === 'developer' || $deptNorm === 'hr';
+        /**
+         * Access rules
+         * Developer = can view all companies
+         * HR/Admin = can view all employees in own company
+         * Others = only own attendance
+         */
+        $canViewAllCompanies = $roleNorm === 'developer';
+
+        $canViewCompany = in_array($roleNorm, ['admin', 'manager']) || $deptNorm === 'hr';
 
         // period: daily | weekly | monthly
         $period = $request->get('period', 'daily');
-        $date   = $request->get('date', Carbon::today('Asia/Manila')->toDateString()); // YYYY-MM-DD
+        $date   = $request->get('date', Carbon::today('Asia/Manila')->toDateString());
 
-        // Build date range
         $base = Carbon::parse($date, 'Asia/Manila');
 
         if ($period === 'weekly') {
@@ -60,12 +74,10 @@ class AttendanceReportController extends Controller
             $end   = $base->copy()->endOfDay();
         }
 
-        // Thresholds (minutes) - you can tweak these
-        $lateGraceMinutes = (int) $request->get('late_grace', 0); // 0 = strict
+        $lateGraceMinutes = (int) $request->get('late_grace', 0);
         $overbreakGrace   = (int) $request->get('overbreak_grace', 0);
         $overlunchGrace   = (int) $request->get('overlunch_grace', 0);
 
-        // Query
         $query = DB::table('attendance_logs as al')
             ->join('employees as e', 'e.id', '=', 'al.employee_id')
             ->leftJoin('employee_schedule_assignments as esa', function ($join) {
@@ -76,85 +88,91 @@ class AttendanceReportController extends Controller
             ->leftJoin('schedules as s', 's.id', '=', 'esa.schedule_id')
             ->whereBetween('al.work_date', [$start->toDateString(), $end->toDateString()]);
 
-        // ✅ Restrict non-developers to their own employee_id
-        if (!$canViewAll) {
-            $query->where('al.employee_id', '=', $myEmployeeId);
+        /**
+         * Data restriction
+         */
+        if ($canViewAllCompanies) {
+            // Developer sees everything
+        } elseif ($canViewCompany) {
+            $query->where('e.company_id', $myCompanyId);
+        } else {
+            $query->where('al.employee_id', $myEmployeeId);
         }
 
-       $rows = $query
-    ->select([
-        'al.id',
-        'al.work_date',
-        'e.id as employee_id',
-        'e.fullname',
-        's.name as schedule_name',
+        $rows = $query
+            ->select([
+                'al.id',
+                'al.work_date',
+                'e.id as employee_id',
+                'e.fullname',
+                'e.company_id',
+                's.name as schedule_name',
 
-        'al.time_in',
-        'al.time_in_location',
+                'al.time_in',
+                'al.time_in_location',
 
-        'al.break_out',
-        'al.break_in',
+                'al.break_out',
+                'al.break_in',
 
-        'al.lunch_out',
-        'al.lunch_in',
+                'al.lunch_out',
+                'al.lunch_in',
 
-        'al.time_out',
-        'al.time_out_location',
+                'al.time_out',
+                'al.time_out_location',
 
-        's.start_time',
-        's.break_start',
-        's.break_end',
-        's.lunch_start',
-        's.lunch_end',
-        's.end_time',
+                's.start_time',
+                's.break_start',
+                's.break_end',
+                's.lunch_start',
+                's.lunch_end',
+                's.end_time',
 
-        DB::raw("
-            CASE
-              WHEN al.time_in is null OR s.start_time is null THEN null
-              ELSE TIMESTAMPDIFF(MINUTE, CONCAT(al.work_date,' ', s.start_time), al.time_in)
-            END as late_minutes
-        "),
+                DB::raw("
+                    CASE
+                      WHEN al.time_in is null OR s.start_time is null THEN null
+                      ELSE TIMESTAMPDIFF(MINUTE, CONCAT(al.work_date,' ', s.start_time), al.time_in)
+                    END as late_minutes
+                "),
 
-        DB::raw("
-            CASE
-              WHEN al.break_out is null OR al.break_in is null THEN null
-              ELSE TIMESTAMPDIFF(MINUTE, al.break_out, al.break_in)
-            END as break_minutes
-        "),
+                DB::raw("
+                    CASE
+                      WHEN al.break_out is null OR al.break_in is null THEN null
+                      ELSE TIMESTAMPDIFF(MINUTE, al.break_out, al.break_in)
+                    END as break_minutes
+                "),
 
-        DB::raw("
-            CASE
-              WHEN s.break_start is null OR s.break_end is null THEN null
-              ELSE TIMESTAMPDIFF(MINUTE, CONCAT(al.work_date,' ', s.break_start), CONCAT(al.work_date,' ', s.break_end))
-            END as sched_break_minutes
-        "),
+                DB::raw("
+                    CASE
+                      WHEN s.break_start is null OR s.break_end is null THEN null
+                      ELSE TIMESTAMPDIFF(MINUTE, CONCAT(al.work_date,' ', s.break_start), CONCAT(al.work_date,' ', s.break_end))
+                    END as sched_break_minutes
+                "),
 
-        DB::raw("
-            CASE
-              WHEN al.lunch_out is null OR al.lunch_in is null THEN null
-              ELSE TIMESTAMPDIFF(MINUTE, al.lunch_out, al.lunch_in)
-            END as lunch_minutes
-        "),
+                DB::raw("
+                    CASE
+                      WHEN al.lunch_out is null OR al.lunch_in is null THEN null
+                      ELSE TIMESTAMPDIFF(MINUTE, al.lunch_out, al.lunch_in)
+                    END as lunch_minutes
+                "),
 
-        DB::raw("
-            CASE
-              WHEN s.lunch_start is null OR s.lunch_end is null THEN null
-              ELSE TIMESTAMPDIFF(MINUTE, CONCAT(al.work_date,' ', s.lunch_start), CONCAT(al.work_date,' ', s.lunch_end))
-            END as sched_lunch_minutes
-        "),
+                DB::raw("
+                    CASE
+                      WHEN s.lunch_start is null OR s.lunch_end is null THEN null
+                      ELSE TIMESTAMPDIFF(MINUTE, CONCAT(al.work_date,' ', s.lunch_start), CONCAT(al.work_date,' ', s.lunch_end))
+                    END as sched_lunch_minutes
+                "),
 
-        DB::raw("
-            CASE
-              WHEN al.time_out is null OR s.end_time is null THEN null
-              ELSE TIMESTAMPDIFF(MINUTE, al.time_out, CONCAT(al.work_date,' ', s.end_time))
-            END as undertime_minutes
-        "),
-    ])
-    ->orderBy('al.work_date')
-    ->orderBy('e.fullname')
-    ->get();
+                DB::raw("
+                    CASE
+                      WHEN al.time_out is null OR s.end_time is null THEN null
+                      ELSE TIMESTAMPDIFF(MINUTE, al.time_out, CONCAT(al.work_date,' ', s.end_time))
+                    END as undertime_minutes
+                "),
+            ])
+            ->orderBy('al.work_date')
+            ->orderBy('e.fullname')
+            ->get();
 
-        // Compute flags + summary in PHP
         $report = $rows->map(function ($r) use ($lateGraceMinutes, $overbreakGrace, $overlunchGrace) {
             $lateMin = is_null($r->late_minutes) ? null : (int) $r->late_minutes;
             $breakMin = is_null($r->break_minutes) ? null : (int) $r->break_minutes;
@@ -200,8 +218,8 @@ class AttendanceReportController extends Controller
             'overlunchGrace' => $overlunchGrace,
             'summary' => $summary,
             'report' => $report,
-            'canViewAll' => $canViewAll,
-            'roleTitle' => $roleTitle, // optional for debugging in blade
+            'canViewAll' => $canViewAllCompanies,
+            'roleTitle' => $me->role_title,
         ]);
     }
 }
