@@ -91,7 +91,7 @@ class EmployeeDashboardController extends Controller
             ->latest('effective_from')
             ->first();
 
-        $schedule = $currentScheduleAssignment?->schedule;
+        $schedule = $currentScheduleAssignment ? $currentScheduleAssignment->schedule : null;
 
         $log = AttendanceLog::firstOrCreate(
             ['employee_id' => $employee->id, 'work_date' => $today],
