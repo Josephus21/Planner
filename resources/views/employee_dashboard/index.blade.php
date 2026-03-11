@@ -37,11 +37,14 @@
   @if(session('success'))
     <div class="alert alert-success">{{ session('success') }}</div>
   @endif
+
   @if($errors->any())
     <div class="alert alert-danger">
       {{ $errors->first() }}
     </div>
   @endif
+
+  <div id="location-status" class="alert alert-info d-none"></div>
 
   {{-- ===== SUMMARY CARDS ===== --}}
   <div class="row g-3 mb-3">
@@ -141,11 +144,14 @@
       <div class="row g-2">
         {{-- TIME IN --}}
         <div class="col-md-4">
-          <form method="POST" action="{{ route('attendance.punch') }}">
+          <form method="POST" action="{{ route('attendance.punch') }}" class="attendance-punch-form">
             @csrf
             <input type="hidden" name="action" value="time_in">
+            <input type="hidden" name="latitude" class="js-latitude">
+            <input type="hidden" name="longitude" class="js-longitude">
+            <input type="hidden" name="accuracy" class="js-accuracy">
 
-            <button class="btn btn-success w-100"
+            <button class="btn btn-success w-100 js-punch-btn"
               {{ ($punchDisabledAll || $log->time_in || !$timeInAllowed) ? 'disabled' : '' }}>
               Time In
             </button>
@@ -165,11 +171,14 @@
 
         {{-- BREAK OUT --}}
         <div class="col-md-4">
-          <form method="POST" action="{{ route('attendance.punch') }}">
+          <form method="POST" action="{{ route('attendance.punch') }}" class="attendance-punch-form">
             @csrf
             <input type="hidden" name="action" value="break_out">
+            <input type="hidden" name="latitude" class="js-latitude">
+            <input type="hidden" name="longitude" class="js-longitude">
+            <input type="hidden" name="accuracy" class="js-accuracy">
 
-            <button class="btn btn-warning w-100"
+            <button class="btn btn-warning w-100 js-punch-btn"
               {{ ($punchDisabledAll || !$hasBreak || $log->break_out) ? 'disabled' : '' }}>
               Break Out
             </button>
@@ -186,11 +195,14 @@
 
         {{-- BREAK IN --}}
         <div class="col-md-4">
-          <form method="POST" action="{{ route('attendance.punch') }}">
+          <form method="POST" action="{{ route('attendance.punch') }}" class="attendance-punch-form">
             @csrf
             <input type="hidden" name="action" value="break_in">
+            <input type="hidden" name="latitude" class="js-latitude">
+            <input type="hidden" name="longitude" class="js-longitude">
+            <input type="hidden" name="accuracy" class="js-accuracy">
 
-            <button class="btn btn-warning w-100"
+            <button class="btn btn-warning w-100 js-punch-btn"
               {{ ($punchDisabledAll || !$hasBreak || $log->break_in) ? 'disabled' : '' }}>
               Break In
             </button>
@@ -207,11 +219,14 @@
 
         {{-- LUNCH OUT --}}
         <div class="col-md-4">
-          <form method="POST" action="{{ route('attendance.punch') }}">
+          <form method="POST" action="{{ route('attendance.punch') }}" class="attendance-punch-form">
             @csrf
             <input type="hidden" name="action" value="lunch_out">
+            <input type="hidden" name="latitude" class="js-latitude">
+            <input type="hidden" name="longitude" class="js-longitude">
+            <input type="hidden" name="accuracy" class="js-accuracy">
 
-            <button class="btn btn-info w-100"
+            <button class="btn btn-info w-100 js-punch-btn"
               {{ ($punchDisabledAll || !$hasLunch || $log->lunch_out) ? 'disabled' : '' }}>
               Lunch Out
             </button>
@@ -228,11 +243,14 @@
 
         {{-- LUNCH IN --}}
         <div class="col-md-4">
-          <form method="POST" action="{{ route('attendance.punch') }}">
+          <form method="POST" action="{{ route('attendance.punch') }}" class="attendance-punch-form">
             @csrf
             <input type="hidden" name="action" value="lunch_in">
+            <input type="hidden" name="latitude" class="js-latitude">
+            <input type="hidden" name="longitude" class="js-longitude">
+            <input type="hidden" name="accuracy" class="js-accuracy">
 
-            <button class="btn btn-info w-100"
+            <button class="btn btn-info w-100 js-punch-btn"
               {{ ($punchDisabledAll || !$hasLunch || $log->lunch_in) ? 'disabled' : '' }}>
               Lunch In
             </button>
@@ -249,11 +267,14 @@
 
         {{-- TIME OUT --}}
         <div class="col-md-4">
-          <form method="POST" action="{{ route('attendance.punch') }}">
+          <form method="POST" action="{{ route('attendance.punch') }}" class="attendance-punch-form">
             @csrf
             <input type="hidden" name="action" value="time_out">
+            <input type="hidden" name="latitude" class="js-latitude">
+            <input type="hidden" name="longitude" class="js-longitude">
+            <input type="hidden" name="accuracy" class="js-accuracy">
 
-            <button class="btn btn-danger w-100"
+            <button class="btn btn-danger w-100 js-punch-btn"
               {{ ($punchDisabledAll || $log->time_out) ? 'disabled' : '' }}>
               Time Out
             </button>
@@ -273,35 +294,127 @@
 @push('styles')
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css">
   <style>
-    #scheduleCalendar { min-height: 650px; }
+    #scheduleCalendar {
+      min-height: 650px;
+    }
   </style>
 @endpush
 
 @push('scripts')
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       const el = document.getElementById('scheduleCalendar');
-      if (!el) return;
 
-      const calendar = new FullCalendar.Calendar(el, {
-        timeZone: 'Asia/Manila',
-        initialView: 'dayGridMonth',
-        headerToolbar: {
-          left: 'prev,next today',
-          center: 'title',
-          right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
-        },
-        navLinks: true,
-        nowIndicator: true,
-        height: 'auto',
-        eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: true },
-        events: "{{ route('employee.schedule.events') }}",
-        eventDisplay: 'block',
-        dayMaxEvents: true,
+      if (el) {
+        const calendar = new FullCalendar.Calendar(el, {
+          timeZone: 'Asia/Manila',
+          initialView: 'dayGridMonth',
+          headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+          },
+          navLinks: true,
+          nowIndicator: true,
+          height: 'auto',
+          eventTimeFormat: {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          },
+          events: "{{ route('employee.schedule.events') }}",
+          eventDisplay: 'block',
+          dayMaxEvents: true,
+        });
+
+        calendar.render();
+      }
+
+      const forms = document.querySelectorAll('.attendance-punch-form');
+      const locationStatus = document.getElementById('location-status');
+
+      forms.forEach(form => {
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+
+          const button = form.querySelector('.js-punch-btn');
+          const actionInput = form.querySelector('input[name="action"]');
+          const actionName = actionInput ? actionInput.value.replace('_', ' ').toUpperCase() : 'PUNCH';
+
+          if (button) {
+            button.disabled = true;
+            button.dataset.originalText = button.innerHTML;
+            button.innerHTML = 'Getting location...';
+          }
+
+          if (locationStatus) {
+            locationStatus.classList.remove('d-none', 'alert-danger', 'alert-success');
+            locationStatus.classList.add('alert-info');
+            locationStatus.innerHTML = 'Please wait. Getting your location for ' + actionName + '...';
+          }
+
+          if (!navigator.geolocation) {
+            if (locationStatus) {
+              locationStatus.classList.remove('alert-info');
+              locationStatus.classList.add('alert-danger');
+              locationStatus.innerHTML = 'Geolocation is not supported by this browser. Submitting without location.';
+            }
+
+            form.submit();
+            return;
+          }
+
+          navigator.geolocation.getCurrentPosition(
+            function (position) {
+              const latInput = form.querySelector('.js-latitude');
+              const lngInput = form.querySelector('.js-longitude');
+              const accInput = form.querySelector('.js-accuracy');
+
+              if (latInput) latInput.value = position.coords.latitude;
+              if (lngInput) lngInput.value = position.coords.longitude;
+              if (accInput) accInput.value = position.coords.accuracy;
+
+              if (locationStatus) {
+                locationStatus.classList.remove('alert-info', 'alert-danger');
+                locationStatus.classList.add('alert-success');
+                locationStatus.innerHTML = 'Location captured successfully. Submitting ' + actionName + '...';
+              }
+
+              form.submit();
+            },
+            function (error) {
+              let message = 'Unable to get location. Submitting without GPS coordinates.';
+
+              switch (error.code) {
+                case error.PERMISSION_DENIED:
+                  message = 'Location permission was denied. Submitting without GPS coordinates.';
+                  break;
+                case error.POSITION_UNAVAILABLE:
+                  message = 'Location information is unavailable. Submitting without GPS coordinates.';
+                  break;
+                case error.TIMEOUT:
+                  message = 'Location request timed out. Submitting without GPS coordinates.';
+                  break;
+              }
+
+              if (locationStatus) {
+                locationStatus.classList.remove('alert-info', 'alert-success');
+                locationStatus.classList.add('alert-danger');
+                locationStatus.innerHTML = message;
+              }
+
+              form.submit();
+            },
+            {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 0
+            }
+          );
+        });
       });
-
-      calendar.render();
     });
   </script>
 @endpush
