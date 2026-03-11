@@ -16,6 +16,7 @@ class Employee extends Model
         'phone_number',
         'address',
         'department_id',
+        'company_id',
         'salary',
         'birth_date',
         'hire_date',
@@ -50,6 +51,11 @@ public function deductions()
 public function tasks()
 {
     return $this->hasMany(\App\Models\Task::class);
+}
+
+public function company()
+{
+    return $this->belongsTo(\App\Models\Company::class);
 }
 
 

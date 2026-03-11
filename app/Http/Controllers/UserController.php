@@ -1,6 +1,5 @@
 <?php
 
-// app/Http/Controllers/UserController.php
 namespace App\Http\Controllers;
 
 use App\Models\User;
@@ -11,25 +10,42 @@ class UserController extends Controller
 {
     public function index()
     {
-        $users = User::with('employee')->get();
+        $companyId = (int) auth()->user()->company_id;
+
+        $users = User::with(['employee' => function ($q) use ($companyId) {
+                $q->where('company_id', $companyId);
+            }])
+            ->where('company_id', $companyId)
+            ->get();
+
         return view('users.index', compact('users'));
     }
 
-    public function edit(User $user)
+    public function edit($id)
     {
-        $user->load('permissions', 'employee');
+        $companyId = (int) auth()->user()->company_id;
+
+        $user = User::with(['employee' => function ($q) use ($companyId) {
+                $q->where('company_id', $companyId);
+            }, 'permissions'])
+            ->where('company_id', $companyId)
+            ->findOrFail($id);
+
         $permissions = Permission::orderBy('key')->get();
 
-        // group for UI
         $groups = $permissions->groupBy(function ($p) {
-            return explode('.', $p->key)[0]; // employees / roles / users
+            return explode('.', $p->key)[0];
         });
 
         return view('users.edit', compact('user', 'groups'));
     }
 
-    public function update(Request $request, User $user)
+    public function update(Request $request, $id)
     {
+        $companyId = (int) auth()->user()->company_id;
+
+        $user = User::where('company_id', $companyId)->findOrFail($id);
+
         $request->validate([
             'permissions' => 'array',
             'permissions.*' => 'string',
@@ -37,7 +53,10 @@ class UserController extends Controller
 
         $keys = $request->input('permissions', []);
 
-        $permissionIds = Permission::whereIn('key', $keys)->pluck('id')->toArray();
+        $permissionIds = Permission::whereIn('key', $keys)
+            ->pluck('id')
+            ->toArray();
+
         $user->permissions()->sync($permissionIds);
 
         return redirect()

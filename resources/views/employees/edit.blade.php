@@ -113,6 +113,8 @@
               @enderror
             </div>
 
+
+
             <div class="mb-3">
               <label class="form-label">Hire date</label>
               <input type="date"

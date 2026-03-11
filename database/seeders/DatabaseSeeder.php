@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
             AdminSeeder::class,
             HumanResourcesSeeder::class,
             DeductionTypeSeeder::class,
+            CompanySeeder::class,
         ]);
     }
 }

@@ -20,12 +20,21 @@ class AttendanceController extends Controller
         ]);
 
         $user = auth()->user();
+        $companyId = (int) $user->company_id;
 
-        $employee = $user->employee_id ? Employee::find((int) $user->employee_id) : null;
+        if (!$companyId) {
+            return back()->withErrors([
+                'company' => 'Your account is not assigned to a company.',
+            ]);
+        }
+
+        $employee = $user->employee_id
+            ? Employee::forCompany($companyId)->find((int) $user->employee_id)
+            : null;
 
         if (!$employee) {
             return back()->withErrors([
-                'employee' => 'Your account is not linked to an employee record.'
+                'employee' => 'Your account is not linked to a valid employee record for your company.',
             ]);
         }
 
@@ -33,11 +42,15 @@ class AttendanceController extends Controller
         $today = $now->toDateString();
         $action = $data['action'];
 
-        $assignment = EmployeeScheduleAssignment::with('schedule')
+        $assignment = EmployeeScheduleAssignment::with([
+                'schedule' => fn ($q) => $q->forCompany($companyId)
+            ])
+            ->forCompany($companyId)
             ->where('employee_id', $employee->id)
             ->where('effective_from', '<=', $today)
             ->where(function ($q) use ($today) {
-                $q->whereNull('effective_to')->orWhere('effective_to', '>=', $today);
+                $q->whereNull('effective_to')
+                  ->orWhere('effective_to', '>=', $today);
             })
             ->latest('effective_from')
             ->first();
@@ -69,10 +82,13 @@ class AttendanceController extends Controller
 
         $log = AttendanceLog::firstOrCreate(
             [
+                'company_id'  => $companyId,
                 'employee_id' => $employee->id,
                 'work_date'   => $today,
             ],
-            []
+            [
+                'company_id' => $companyId,
+            ]
         );
 
         if (!is_null($log->{$action})) {
@@ -137,8 +153,6 @@ class AttendanceController extends Controller
         }
 
         $log->{$action} = $now;
-
-        // Save location per action
         $log->{$action . '_latitude'} = $latitude;
         $log->{$action . '_longitude'} = $longitude;
         $log->{$action . '_accuracy'} = $accuracy;
@@ -147,7 +161,7 @@ class AttendanceController extends Controller
 
         $log->save();
 
-        $this->recomputeComputedFields($log, $employee);
+        $this->recomputeComputedFields($log, $employee, $companyId);
 
         return back()->with(
             'success',
@@ -201,24 +215,20 @@ class AttendanceController extends Controller
                 return $city;
             }
 
-            if (isset($data['display_name'])) {
-                return $data['display_name'];
-            }
-
-            return null;
+            return $data['display_name'] ?? null;
         } catch (\Throwable $e) {
             return null;
         }
     }
 
-    /**
-     * Recompute minutes_late, minutes_worked, minutes_undertime based on schedule + punches.
-     */
-    protected function recomputeComputedFields(AttendanceLog $log, Employee $employee): void
+    protected function recomputeComputedFields(AttendanceLog $log, Employee $employee, int $companyId): void
     {
         $workDate = Carbon::parse($log->work_date)->toDateString();
 
-        $assignment = EmployeeScheduleAssignment::with('schedule')
+        $assignment = EmployeeScheduleAssignment::with([
+                'schedule' => fn ($q) => $q->forCompany($companyId)
+            ])
+            ->forCompany($companyId)
             ->where('employee_id', $employee->id)
             ->where('effective_from', '<=', $workDate)
             ->where(function ($q) use ($workDate) {
@@ -227,6 +237,7 @@ class AttendanceController extends Controller
             ->latest('effective_from')
             ->first();
 
+        
         $schedule = $assignment ? $assignment->schedule : null;
 
         if (!$schedule) {
@@ -246,8 +257,6 @@ class AttendanceController extends Controller
         };
 
         $scheduleStart = $dt($schedule->start_time);
-        $scheduleEnd   = $dt($schedule->end_time);
-
         $requiredMinutes = (int) round(((float) ($employee->work_hours_per_day ?? 8)) * 60);
 
         $minutesLate = 0;
@@ -321,7 +330,6 @@ class AttendanceController extends Controller
         $log->minutes_late = (int) $minutesLate;
         $log->minutes_worked = (int) $minutesWorked;
         $log->minutes_undertime = (int) $minutesUndertime;
-
         $log->save();
     }
 }

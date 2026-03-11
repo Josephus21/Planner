@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Builder;
 
 class LeaveRequest extends Model
 {
@@ -14,10 +15,17 @@ class LeaveRequest extends Model
 
     protected $fillable = [
         'employee_id',
+        'company_id',
         'leave_type',
         'start_date',
         'end_date',
         'status',
+    ];
+
+    protected $casts = [
+        'start_date' => 'date',
+        'end_date' => 'date',
+        'deleted_at' => 'datetime',
     ];
 
     public function employee()
@@ -25,5 +33,13 @@ class LeaveRequest extends Model
         return $this->belongsTo(Employee::class);
     }
 
-    
+    public function company()
+    {
+        return $this->belongsTo(Company::class);
+    }
+
+    public function scopeForCompany(Builder $query, int $companyId): Builder
+    {
+        return $query->where($this->getTable() . '.company_id', $companyId);
+    }
 }

@@ -14,19 +14,26 @@ class PayrollController extends Controller
      */
     public function index(Request $request)
     {
-        // list all saved payroll periods
-        $periods = PayrollPeriod::orderByDesc('date_from')->get();
+        $companyId = auth()->user()->company_id;
 
-        // pick selected period
+        // list payroll periods for this company only
+        $periods = PayrollPeriod::where('company_id', $companyId)
+            ->orderByDesc('date_from')
+            ->get();
+
         if ($request->filled('period_id')) {
-            $selectedPeriod = PayrollPeriod::findOrFail($request->period_id);
+            $selectedPeriod = PayrollPeriod::where('company_id', $companyId)
+                ->findOrFail($request->period_id);
         } else {
-            $selectedPeriod = PayrollPeriod::orderByDesc('date_from')->first();
+            $selectedPeriod = PayrollPeriod::where('company_id', $companyId)
+                ->orderByDesc('date_from')
+                ->first();
         }
 
-        // get payroll rows for the period
+        // payroll rows for selected period
         $payrolls = $selectedPeriod
             ? Payroll::with(['employee', 'items'])
+                ->where('company_id', $companyId)
                 ->where('payroll_period_id', $selectedPeriod->id)
                 ->orderByRaw('net_pay DESC')
                 ->get()
@@ -36,22 +43,25 @@ class PayrollController extends Controller
     }
 
     /**
-     * Generate / Recompute payroll (semi-monthly but flexible)
-     * Takes date_from and date_to, creates a period if not exists, then computes payroll.
+     * Generate payroll
      */
     public function generate(Request $request, PayrollGenerator $generator)
     {
+        $companyId = auth()->user()->company_id;
+
         $validated = $request->validate([
             'date_from' => ['required', 'date'],
             'date_to'   => ['required', 'date', 'after_or_equal:date_from'],
         ]);
 
-        $period = PayrollPeriod::firstOrCreate([
-            'date_from' => $validated['date_from'],
-            'date_to'   => $validated['date_to'],
-        ]);
+        $period = PayrollPeriod::firstOrCreate(
+            [
+                'company_id' => $companyId,
+                'date_from' => $validated['date_from'],
+                'date_to' => $validated['date_to'],
+            ]
+        );
 
-        // Prevent recompute if posted/locked
         if ($period->status === 'posted') {
             return redirect()
                 ->route('payrolls.index', ['period_id' => $period->id])
@@ -66,25 +76,40 @@ class PayrollController extends Controller
     }
 
     /**
-     * View a single payroll record (with breakdown)
+     * View payroll record
      */
     public function show(Payroll $payroll)
     {
+        $companyId = auth()->user()->company_id;
+
+        if ($payroll->company_id !== $companyId) {
+            abort(403, 'Unauthorized payroll access.');
+        }
+
         $payroll->load(['employee', 'items', 'period']);
+
         return view('payrolls.show', compact('payroll'));
     }
 
     /**
-     * Delete payroll record (optional)
+     * Delete payroll
      */
     public function destroy(Payroll $payroll)
     {
-        // block delete if period posted
+        $companyId = auth()->user()->company_id;
+
+        if ($payroll->company_id !== $companyId) {
+            abort(403, 'Unauthorized payroll deletion.');
+        }
+
         if ($payroll->period && $payroll->period->status === 'posted') {
-            return back()->withErrors(['delete' => 'Cannot delete payroll from a POSTED period.']);
+            return back()->withErrors([
+                'delete' => 'Cannot delete payroll from a POSTED period.'
+            ]);
         }
 
         $periodId = $payroll->payroll_period_id;
+
         $payroll->delete();
 
         return redirect()
