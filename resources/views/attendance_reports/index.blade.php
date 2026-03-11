@@ -83,97 +83,98 @@
     <div class="col-md-2"><div class="card"><div class="card-body"><small>Missing Punch</small><h5>{{ $summary['missing_punch'] }}</h5></div></div></div>
   </div>
 
-  <div class="card">
-    <div class="card-header">
-      <h5>Attendance Logs</h5>
-    </div>
-    <div class="card-body table-responsive">
-      <table class="table table-striped table-bordered align-middle">
-        <thead>
-          <tr>
-            <th>Date</th>
-
-           @if(($viewScope ?? 'self') !== 'self')
-  <td>{{ $r->fullname }}</td>
-  <td>{{ $r->company_name ?? '-' }}</td>
-@endif
-
-            <th>Schedule</th>
-            <th>Time In</th>
-            <th>Time In Location</th>
-            <th>Late (min)</th>
-            <th>Break (min)</th>
-            <th>Lunch (min)</th>
-            <th>Time Out</th>
-            <th>Time Out Location</th>
-            <th>Flags</th>
-          </tr>
-        </thead>
-        <tbody>
-          @forelse($report as $r)
-            <tr>
-              <td>{{ \Carbon\Carbon::parse($r->work_date)->format('M d, Y') }}</td>
-
-              @if(($viewScope ?? 'self') !== 'self')
-                <td>{{ $r->fullname }}</td>
-              @endif
-
-              <td>{{ $r->schedule_name ?? '-' }}</td>
-
-              <td>
-                {{ $r->time_in ? \Carbon\Carbon::parse($r->time_in)->format('h:i A') : '---' }}
-              </td>
-
-              <td>
-                {{ $r->time_in_location ?? '---' }}
-              </td>
-
-              <td>
-                {{ !is_null($r->late_minutes) ? $r->late_minutes : '---' }}
-              </td>
-
-              <td>{{ is_null($r->break_minutes) ? '---' : $r->break_minutes }}</td>
-              <td>{{ is_null($r->lunch_minutes) ? '---' : $r->lunch_minutes }}</td>
-
-              <td>
-                {{ $r->time_out ? \Carbon\Carbon::parse($r->time_out)->format('h:i A') : '---' }}
-              </td>
-
-              <td>
-                {{ $r->time_out_location ?? '---' }}
-              </td>
-
-              <td>
-                @php
-                  $flags = [];
-                  if($r->is_late) $flags[] = 'LATE';
-                  if($r->over_break) $flags[] = 'OVERBREAK';
-                  if($r->over_lunch) $flags[] = 'OVERLUNCH';
-                  if($r->is_undertime) $flags[] = 'UNDERTIME';
-                  if(count($r->missing) > 0) $flags[] = 'MISSING: '.implode(', ', $r->missing);
-                @endphp
-
-                @if(count($flags) === 0)
-                  <span class="badge bg-success">OK</span>
-                @else
-                  @foreach($flags as $f)
-                    <span class="badge bg-danger">{{ $f }}</span>
-                  @endforeach
-                @endif
-              </td>
-            </tr>
-          @empty
-            @php
-  $colspan = (($viewScope ?? 'self') !== 'self') ? 12 : 10;
-@endphp
-            <tr>
-              <td colspan="{{ $colspan }}" class="text-center">No attendance logs found.</td>
-            </tr>
-          @endforelse
-        </tbody>
-      </table>
-    </div>
+ <div class="card">
+  <div class="card-header">
+    <h5>Attendance Logs</h5>
   </div>
+  <div class="card-body table-responsive">
+    <table class="table table-striped table-bordered align-middle">
+      <thead>
+        <tr>
+          <th>Date</th>
+
+          @if(($viewScope ?? 'self') !== 'self')
+            <th>Employee</th>
+            <th>Company</th>
+          @endif
+
+          <th>Schedule</th>
+          <th>Time In</th>
+          <th>Time In Location</th>
+          <th>Late (min)</th>
+          <th>Break (min)</th>
+          <th>Lunch (min)</th>
+          <th>Time Out</th>
+          <th>Time Out Location</th>
+          <th>Flags</th>
+        </tr>
+      </thead>
+      <tbody>
+        @forelse($report as $r)
+          <tr>
+            <td>{{ \Carbon\Carbon::parse($r->work_date)->format('M d, Y') }}</td>
+
+            @if(($viewScope ?? 'self') !== 'self')
+              <td>{{ $r->fullname }}</td>
+              <td>{{ $r->company_name ?? '-' }}</td>
+            @endif
+
+            <td>{{ $r->schedule_name ?? '-' }}</td>
+
+            <td>
+              {{ $r->time_in ? \Carbon\Carbon::parse($r->time_in)->format('h:i A') : '---' }}
+            </td>
+
+            <td>
+              {{ $r->time_in_location ?? '---' }}
+            </td>
+
+            <td>
+              {{ !is_null($r->late_minutes) ? $r->late_minutes : '---' }}
+            </td>
+
+            <td>{{ is_null($r->break_minutes) ? '---' : $r->break_minutes }}</td>
+            <td>{{ is_null($r->lunch_minutes) ? '---' : $r->lunch_minutes }}</td>
+
+            <td>
+              {{ $r->time_out ? \Carbon\Carbon::parse($r->time_out)->format('h:i A') : '---' }}
+            </td>
+
+            <td>
+              {{ $r->time_out_location ?? '---' }}
+            </td>
+
+            <td>
+              @php
+                $flags = [];
+                if($r->is_late) $flags[] = 'LATE';
+                if($r->over_break) $flags[] = 'OVERBREAK';
+                if($r->over_lunch) $flags[] = 'OVERLUNCH';
+                if($r->is_undertime) $flags[] = 'UNDERTIME';
+                if(count($r->missing) > 0) $flags[] = 'MISSING: ' . implode(', ', $r->missing);
+              @endphp
+
+              @if(count($flags) === 0)
+                <span class="badge bg-success">OK</span>
+              @else
+                @foreach($flags as $f)
+                  <span class="badge bg-danger">{{ $f }}</span>
+                @endforeach
+              @endif
+            </td>
+          </tr>
+        @empty
+          @php
+            $colspan = (($viewScope ?? 'self') !== 'self') ? 12 : 10;
+          @endphp
+          <tr>
+            <td colspan="{{ $colspan }}" class="text-center">No attendance logs found.</td>
+          </tr>
+        @endforelse
+      </tbody>
+    </table>
+  </div>
+</div>
 
 </section>
 </div>
