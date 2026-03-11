@@ -6,8 +6,11 @@
   <p class="text-subtitle text-muted">
     Period: <strong>{{ strtoupper($period) }}</strong> |
     Range: <strong>{{ $start->format('M d, Y') }}</strong> - <strong>{{ $end->format('M d, Y') }}</strong>
-    @if(!empty($canViewAll) && $canViewAll)
+
+    @if(($viewScope ?? 'self') === 'all_companies')
       | <span class="badge bg-primary">Developer View: All Employees</span>
+    @elseif(($viewScope ?? 'self') === 'company')
+      | <span class="badge bg-success">Company View: All Employees</span>
     @else
       | <span class="badge bg-secondary">My Logs Only</span>
     @endif
@@ -75,7 +78,7 @@
           <tr>
             <th>Date</th>
 
-            @if(!empty($canViewAll) && $canViewAll)
+            @if(($viewScope ?? 'self') !== 'self')
               <th>Employee</th>
             @endif
 
@@ -95,7 +98,7 @@
             <tr>
               <td>{{ \Carbon\Carbon::parse($r->work_date)->format('M d, Y') }}</td>
 
-              @if(!empty($canViewAll) && $canViewAll)
+              @if(($viewScope ?? 'self') !== 'self')
                 <td>{{ $r->fullname }}</td>
               @endif
 
@@ -110,11 +113,7 @@
               </td>
 
               <td>
-                @if(!is_null($r->late_minutes))
-                  {{ $r->late_minutes }}
-                @else
-                  ---
-                @endif
+                {{ !is_null($r->late_minutes) ? $r->late_minutes : '---' }}
               </td>
 
               <td>{{ is_null($r->break_minutes) ? '---' : $r->break_minutes }}</td>
@@ -149,7 +148,7 @@
             </tr>
           @empty
             @php
-              $colspan = (!empty($canViewAll) && $canViewAll) ? 11 : 10;
+              $colspan = (($viewScope ?? 'self') !== 'self') ? 11 : 10;
             @endphp
             <tr>
               <td colspan="{{ $colspan }}" class="text-center">No attendance logs found.</td>
