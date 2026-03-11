@@ -34,7 +34,7 @@ class AttendanceReportController extends Controller
         $roleNorm = Str::lower(trim((string) $roleTitle));
 
         // Only Developer can view all employees
-        $canViewAll = ($roleNorm === 'developer');
+        $canViewAll = $roleNorm === 'developer' || $roleNorm === 'hr';
 
         // period: daily | weekly | monthly
         $period = $request->get('period', 'daily');
