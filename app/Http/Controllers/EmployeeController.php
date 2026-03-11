@@ -20,42 +20,11 @@ use App\Models\EmployeeDeduction;
 
 class EmployeeController extends Controller
 {
-   public function index()
-{
-    $user = auth()->user();
-
-    $myEmployee = Employee::with(['role', 'companies'])->find($user->employee_id);
-
-    if (!$myEmployee) {
-        return back()->withErrors([
-            'employee' => 'Your account is not linked to an employee record.',
-        ]);
-    }
-
-    $roleTitle = strtolower(trim($myEmployee->role->title ?? ''));
-    $accessibleCompanyIds = $this->getAccessibleCompanyIds($myEmployee);
-
-    $query = Employee::with(['company', 'companies', 'department', 'role']);
-
-    // Developer can see all companies
-    if ($roleTitle !== 'developer') {
-        $query->where(function ($q) use ($accessibleCompanyIds) {
-            $q->whereIn('company_id', $accessibleCompanyIds)
-              ->orWhereHas('companies', function ($sub) use ($accessibleCompanyIds) {
-                  $sub->whereIn('companies.id', $accessibleCompanyIds);
-              });
-        });
-    }
-
-    $employees = $query->get();
-
-    return view('employees.index', compact('employees'));
-}
-    public function create()
+    public function index()
     {
         $user = auth()->user();
 
-        $myEmployee = Employee::with('role')->find($user->employee_id);
+        $myEmployee = Employee::with(['role', 'companies'])->find($user->employee_id);
 
         if (!$myEmployee) {
             return back()->withErrors([
@@ -64,11 +33,42 @@ class EmployeeController extends Controller
         }
 
         $roleTitle = strtolower(trim($myEmployee->role->title ?? ''));
-        $myCompanyId = $myEmployee->company_id;
+        $accessibleCompanyIds = $this->getAccessibleCompanyIds($myEmployee);
+
+        $query = Employee::with(['company', 'companies', 'department', 'role']);
+
+        if ($roleTitle !== 'developer') {
+            $query->where(function ($q) use ($accessibleCompanyIds) {
+                $q->whereIn('company_id', $accessibleCompanyIds)
+                  ->orWhereHas('companies', function ($sub) use ($accessibleCompanyIds) {
+                      $sub->whereIn('companies.id', $accessibleCompanyIds);
+                  });
+            });
+        }
+
+        $employees = $query->get();
+
+        return view('employees.index', compact('employees'));
+    }
+
+    public function create()
+    {
+        $user = auth()->user();
+
+        $myEmployee = Employee::with(['role', 'companies'])->find($user->employee_id);
+
+        if (!$myEmployee) {
+            return back()->withErrors([
+                'employee' => 'Your account is not linked to an employee record.',
+            ]);
+        }
+
+        $roleTitle = strtolower(trim($myEmployee->role->title ?? ''));
+        $accessibleCompanyIds = $this->getAccessibleCompanyIds($myEmployee);
 
         $companies = $roleTitle === 'developer'
             ? Company::where('status', 'active')->orderBy('name')->get()
-            : Company::where('id', $myCompanyId)->where('status', 'active')->orderBy('name')->get();
+            : Company::whereIn('id', $accessibleCompanyIds)->where('status', 'active')->orderBy('name')->get();
 
         $departments = Department::orderBy('name')->get();
         $roles = Role::orderBy('title')->get();
@@ -88,7 +88,7 @@ class EmployeeController extends Controller
     {
         $user = auth()->user();
 
-        $myEmployee = Employee::with('role')->find($user->employee_id);
+        $myEmployee = Employee::with(['role', 'companies'])->find($user->employee_id);
 
         if (!$myEmployee) {
             return back()->withErrors([
@@ -97,7 +97,7 @@ class EmployeeController extends Controller
         }
 
         $roleTitle = strtolower(trim($myEmployee->role->title ?? ''));
-        $myCompanyId = $myEmployee->company_id;
+        $accessibleCompanyIds = $this->getAccessibleCompanyIds($myEmployee);
 
         $validatedData = $request->validate([
             'fullname' => 'required|string|max:255',
@@ -106,7 +106,7 @@ class EmployeeController extends Controller
             'address' => 'nullable|string',
             'birth_date' => 'required|date',
             'hire_date' => 'required|date',
-            'company_id' => 'required|exists:companies,id', // primary company
+            'company_id' => 'required|exists:companies,id',
             'company_ids' => 'required|array|min:1',
             'company_ids.*' => 'exists:companies,id',
             'department_id' => 'required|exists:departments,id',
@@ -117,10 +117,20 @@ class EmployeeController extends Controller
             'deductions' => 'nullable|array',
         ]);
 
-        // Non-developer can only assign to own company
         if ($roleTitle !== 'developer') {
-            $validatedData['company_id'] = $myCompanyId;
-            $validatedData['company_ids'] = [$myCompanyId];
+            $validatedData['company_id'] = in_array((int) $validatedData['company_id'], $accessibleCompanyIds)
+                ? (int) $validatedData['company_id']
+                : (int) $myEmployee->company_id;
+
+            $validatedData['company_ids'] = collect($validatedData['company_ids'])
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn ($id) => in_array($id, $accessibleCompanyIds))
+                ->values()
+                ->all();
+
+            if (empty($validatedData['company_ids'])) {
+                $validatedData['company_ids'] = [(int) $validatedData['company_id']];
+            }
         }
 
         $employee = Employee::create([
@@ -130,7 +140,7 @@ class EmployeeController extends Controller
             'address' => $validatedData['address'] ?? null,
             'birth_date' => $validatedData['birth_date'],
             'hire_date' => $validatedData['hire_date'],
-            'company_id' => $validatedData['company_id'], // primary/default company
+            'company_id' => $validatedData['company_id'],
             'department_id' => $validatedData['department_id'],
             'role_id' => $validatedData['role_id'],
             'status' => $validatedData['status'],
@@ -147,13 +157,11 @@ class EmployeeController extends Controller
 
         $this->syncEmployeeDeductions($employee, $request->input('deductions', []));
 
-        $tempPassword = null;
+        $existingUser = User::where('email', $employee->email)->first();
 
-        $user = User::where('email', $employee->email)->first();
-
-        if ($user) {
-            $user->employee_id = (string) $employee->id;
-            $user->save();
+        if ($existingUser) {
+            $existingUser->employee_id = (string) $employee->id;
+            $existingUser->save();
 
             return redirect()
                 ->route('employees.index')
@@ -188,15 +196,15 @@ class EmployeeController extends Controller
         }
 
         $roleTitle = strtolower(trim($myEmployee->role->title ?? ''));
-        $myCompanyId = $myEmployee->company_id;
+        $accessibleCompanyIds = $this->getAccessibleCompanyIds($myEmployee);
 
         $query = Employee::with(['company', 'companies', 'department', 'role']);
 
         if ($roleTitle !== 'developer') {
-            $query->where(function ($q) use ($myCompanyId) {
-                $q->where('company_id', $myCompanyId)
-                  ->orWhereHas('companies', function ($sub) use ($myCompanyId) {
-                      $sub->where('companies.id', $myCompanyId);
+            $query->where(function ($q) use ($accessibleCompanyIds) {
+                $q->whereIn('company_id', $accessibleCompanyIds)
+                  ->orWhereHas('companies', function ($sub) use ($accessibleCompanyIds) {
+                      $sub->whereIn('companies.id', $accessibleCompanyIds);
                   });
             });
         }
@@ -210,7 +218,7 @@ class EmployeeController extends Controller
     {
         $user = auth()->user();
 
-        $myEmployee = Employee::with('role')->find($user->employee_id);
+        $myEmployee = Employee::with(['role', 'companies'])->find($user->employee_id);
 
         if (!$myEmployee) {
             return back()->withErrors([
@@ -219,7 +227,7 @@ class EmployeeController extends Controller
         }
 
         $roleTitle = strtolower(trim($myEmployee->role->title ?? ''));
-        $myCompanyId = $myEmployee->company_id;
+        $accessibleCompanyIds = $this->getAccessibleCompanyIds($myEmployee);
 
         $query = Employee::with([
             'deductions',
@@ -229,23 +237,20 @@ class EmployeeController extends Controller
             'role',
         ]);
 
-        // Developer can access all companies
         if ($roleTitle !== 'developer') {
-            $query->where(function ($q) use ($myCompanyId) {
-                $q->where('company_id', $myCompanyId)
-                  ->orWhereHas('companies', function ($sub) use ($myCompanyId) {
-                      $sub->where('companies.id', $myCompanyId);
+            $query->where(function ($q) use ($accessibleCompanyIds) {
+                $q->whereIn('company_id', $accessibleCompanyIds)
+                  ->orWhereHas('companies', function ($sub) use ($accessibleCompanyIds) {
+                      $sub->whereIn('companies.id', $accessibleCompanyIds);
                   });
             });
         }
 
         $employee = $query->findOrFail($id);
 
-        // Developer can choose all active companies
-        // Non-developer can only see own company in dropdown
         $companies = $roleTitle === 'developer'
             ? Company::where('status', 'active')->orderBy('name')->get()
-            : Company::where('id', $myCompanyId)->where('status', 'active')->orderBy('name')->get();
+            : Company::whereIn('id', $accessibleCompanyIds)->where('status', 'active')->orderBy('name')->get();
 
         $departments = Department::orderBy('name')->get();
         $roles = Role::orderBy('title')->get();
@@ -279,7 +284,7 @@ class EmployeeController extends Controller
     {
         $user = auth()->user();
 
-        $myEmployee = Employee::with('role')->find($user->employee_id);
+        $myEmployee = Employee::with(['role', 'companies'])->find($user->employee_id);
 
         if (!$myEmployee) {
             return back()->withErrors([
@@ -288,15 +293,15 @@ class EmployeeController extends Controller
         }
 
         $roleTitle = strtolower(trim($myEmployee->role->title ?? ''));
-        $myCompanyId = $myEmployee->company_id;
+        $accessibleCompanyIds = $this->getAccessibleCompanyIds($myEmployee);
 
         $query = Employee::query();
 
         if ($roleTitle !== 'developer') {
-            $query->where(function ($q) use ($myCompanyId) {
-                $q->where('company_id', $myCompanyId)
-                  ->orWhereHas('companies', function ($sub) use ($myCompanyId) {
-                      $sub->where('companies.id', $myCompanyId);
+            $query->where(function ($q) use ($accessibleCompanyIds) {
+                $q->whereIn('company_id', $accessibleCompanyIds)
+                  ->orWhereHas('companies', function ($sub) use ($accessibleCompanyIds) {
+                      $sub->whereIn('companies.id', $accessibleCompanyIds);
                   });
             });
         }
@@ -310,7 +315,7 @@ class EmployeeController extends Controller
             'address' => 'nullable|string',
             'birth_date' => 'required|date',
             'hire_date' => 'required|date',
-            'company_id' => 'required|exists:companies,id', // primary company
+            'company_id' => 'required|exists:companies,id',
             'company_ids' => 'required|array|min:1',
             'company_ids.*' => 'exists:companies,id',
             'department_id' => 'required|exists:departments,id',
@@ -320,10 +325,20 @@ class EmployeeController extends Controller
             'deductions' => 'nullable|array',
         ]);
 
-        // Non-developer cannot move employee to another company
         if ($roleTitle !== 'developer') {
-            $validatedData['company_id'] = $myCompanyId;
-            $validatedData['company_ids'] = [$myCompanyId];
+            $validatedData['company_id'] = in_array((int) $validatedData['company_id'], $accessibleCompanyIds)
+                ? (int) $validatedData['company_id']
+                : (int) $myEmployee->company_id;
+
+            $validatedData['company_ids'] = collect($validatedData['company_ids'])
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn ($id) => in_array($id, $accessibleCompanyIds))
+                ->values()
+                ->all();
+
+            if (empty($validatedData['company_ids'])) {
+                $validatedData['company_ids'] = [(int) $validatedData['company_id']];
+            }
         }
 
         $employee->update([
@@ -359,7 +374,7 @@ class EmployeeController extends Controller
     {
         $user = auth()->user();
 
-        $myEmployee = Employee::with('role')->find($user->employee_id);
+        $myEmployee = Employee::with(['role', 'companies'])->find($user->employee_id);
 
         if (!$myEmployee) {
             return back()->withErrors([
@@ -368,15 +383,15 @@ class EmployeeController extends Controller
         }
 
         $roleTitle = strtolower(trim($myEmployee->role->title ?? ''));
-        $myCompanyId = $myEmployee->company_id;
+        $accessibleCompanyIds = $this->getAccessibleCompanyIds($myEmployee);
 
         $query = Employee::query();
 
         if ($roleTitle !== 'developer') {
-            $query->where(function ($q) use ($myCompanyId) {
-                $q->where('company_id', $myCompanyId)
-                  ->orWhereHas('companies', function ($sub) use ($myCompanyId) {
-                      $sub->where('companies.id', $myCompanyId);
+            $query->where(function ($q) use ($accessibleCompanyIds) {
+                $q->whereIn('company_id', $accessibleCompanyIds)
+                  ->orWhereHas('companies', function ($sub) use ($accessibleCompanyIds) {
+                      $sub->whereIn('companies.id', $accessibleCompanyIds);
                   });
             });
         }
@@ -393,7 +408,7 @@ class EmployeeController extends Controller
     {
         $user = auth()->user();
 
-        $myEmployee = Employee::with('role')->find($user->employee_id);
+        $myEmployee = Employee::with(['role', 'companies'])->find($user->employee_id);
 
         if (!$myEmployee) {
             return back()->withErrors([
@@ -402,15 +417,15 @@ class EmployeeController extends Controller
         }
 
         $roleTitle = strtolower(trim($myEmployee->role->title ?? ''));
-        $myCompanyId = $myEmployee->company_id;
+        $accessibleCompanyIds = $this->getAccessibleCompanyIds($myEmployee);
 
         $query = Employee::query();
 
         if ($roleTitle !== 'developer') {
-            $query->where(function ($q) use ($myCompanyId) {
-                $q->where('company_id', $myCompanyId)
-                  ->orWhereHas('companies', function ($sub) use ($myCompanyId) {
-                      $sub->where('companies.id', $myCompanyId);
+            $query->where(function ($q) use ($accessibleCompanyIds) {
+                $q->whereIn('company_id', $accessibleCompanyIds)
+                  ->orWhereHas('companies', function ($sub) use ($accessibleCompanyIds) {
+                      $sub->whereIn('companies.id', $accessibleCompanyIds);
                   });
             });
         }
@@ -438,6 +453,18 @@ class EmployeeController extends Controller
         ]);
 
         return back()->with('success', 'Schedule assigned to employee.');
+    }
+
+    private function getAccessibleCompanyIds(Employee $employee): array
+    {
+        return $employee->companies()
+            ->pluck('companies.id')
+            ->map(fn ($id) => (int) $id)
+            ->push((int) $employee->company_id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function syncEmployeeDeductions(Employee $employee, array $deductions): void
