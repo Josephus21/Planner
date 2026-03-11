@@ -31,10 +31,16 @@ class AttendanceReportController extends Controller
             ->where('e.id', $myEmployeeId)
             ->value('r.title'); // ex: "Developer"
 
+             $deptTitle = DB::table('employees as e')
+            ->leftJoin('departments as r', 'r.id', '=', 'e.department_id')
+            ->where('e.id', $myEmployeeId)
+            ->value('r.title'); // ex: "Developer"
+
         $roleNorm = Str::lower(trim((string) $roleTitle));
+        $deptNorm = Str::lower(trim((string) $deptTitle));
 
         // Only Developer can view all employees
-        $canViewAll = $roleNorm === 'developer' || $roleNorm === 'supervisor';
+        $canViewAll = $roleNorm === 'developer' || $deptNorm === 'hr';
 
         // period: daily | weekly | monthly
         $period = $request->get('period', 'daily');
