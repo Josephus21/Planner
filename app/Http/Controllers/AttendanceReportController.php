@@ -43,24 +43,42 @@ class AttendanceReportController extends Controller
             ]);
         }
 
-       $roleNorm = Str::lower(trim((string) $me->role_title));
-$deptNorm = Str::lower(trim((string) $me->department_title));
-$myCompanyId = $me->company_id;
+        $roleNorm = Str::lower(trim((string) $me->role_title));
+        $deptNorm = Str::lower(trim((string) $me->department_title));
+        $myCompanyId = $me->company_id;
 
-$isDeveloper = $roleNorm === 'developer';
-$isHrDept = in_array($deptNorm, ['hr', 'human resources', 'human resource']);
-$isCompanyViewer = in_array($roleNorm, ['admin', 'manager']) || $isHrDept;
+        $isDeveloper = $roleNorm === 'developer';
+        $isHrDept = in_array($deptNorm, ['hr', 'human resources', 'human resource']);
+        $isCompanyViewer = in_array($roleNorm, ['admin', 'manager']) || $isHrDept;
 
-$canViewAllCompanies = $isDeveloper;
-$canViewCompany = $isCompanyViewer;
+        $canViewAllCompanies = $isDeveloper;
+        $canViewCompany = $isCompanyViewer;
 
-if ($canViewAllCompanies) {
-    $viewScope = 'all_companies';
-} elseif ($canViewCompany) {
-    $viewScope = 'company';
-} else {
-    $viewScope = 'self';
-}
+        if ($canViewAllCompanies) {
+            $viewScope = 'all_companies';
+        } elseif ($canViewCompany) {
+            $viewScope = 'company';
+        } else {
+            $viewScope = 'self';
+        }
+
+        // period: daily | weekly | monthly
+        $period = $request->get('period', 'daily');
+        $date   = $request->get('date', Carbon::today('Asia/Manila')->toDateString());
+
+        $base = Carbon::parse($date, 'Asia/Manila');
+
+        if ($period === 'weekly') {
+            $start = $base->copy()->startOfWeek(Carbon::MONDAY);
+            $end   = $base->copy()->endOfWeek(Carbon::SUNDAY);
+        } elseif ($period === 'monthly') {
+            $start = $base->copy()->startOfMonth();
+            $end   = $base->copy()->endOfMonth();
+        } else {
+            $start = $base->copy()->startOfDay();
+            $end   = $base->copy()->endOfDay();
+        }
+
         $lateGraceMinutes = (int) $request->get('late_grace', 0);
         $overbreakGrace   = (int) $request->get('overbreak_grace', 0);
         $overlunchGrace   = (int) $request->get('overlunch_grace', 0);
@@ -196,19 +214,19 @@ if ($canViewAllCompanies) {
         ];
 
         return view('attendance_reports.index', [
-    'period' => $period,
-    'date' => $base->toDateString(),
-    'start' => $start,
-    'end' => $end,
-    'lateGraceMinutes' => $lateGraceMinutes,
-    'overbreakGrace' => $overbreakGrace,
-    'overlunchGrace' => $overlunchGrace,
-    'summary' => $summary,
-    'report' => $report,
-    'canViewAll' => $canViewAllCompanies,
-    'canViewCompany' => $canViewCompany,
-    'viewScope' => $viewScope,
-    'roleTitle' => $me->role_title,
-]);
+            'period' => $period,
+            'date' => $base->toDateString(),
+            'start' => $start,
+            'end' => $end,
+            'lateGraceMinutes' => $lateGraceMinutes,
+            'overbreakGrace' => $overbreakGrace,
+            'overlunchGrace' => $overlunchGrace,
+            'summary' => $summary,
+            'report' => $report,
+            'canViewAll' => $canViewAllCompanies,
+            'canViewCompany' => $canViewCompany,
+            'viewScope' => $viewScope,
+            'roleTitle' => $me->role_title,
+        ]);
     }
 }
