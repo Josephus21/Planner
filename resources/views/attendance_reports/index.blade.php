@@ -8,12 +8,12 @@
     Range: <strong>{{ $start->format('M d, Y') }}</strong> - <strong>{{ $end->format('M d, Y') }}</strong>
 
     @if(($viewScope ?? 'self') === 'all_companies')
-      | <span class="badge bg-primary">Developer View: All Employees</span>
-    @elseif(($viewScope ?? 'self') === 'company')
-      | <span class="badge bg-success">Company View: All Employees</span>
-    @else
-      | <span class="badge bg-secondary">My Logs Only</span>
-    @endif
+  | <span class="badge bg-primary">Developer View: All Employees</span>
+@elseif(($viewScope ?? 'self') === 'assigned_companies')
+  | <span class="badge bg-success">Assigned Companies View</span>
+@else
+  | <span class="badge bg-secondary">My Logs Only</span>
+@endif
   </p>
 </div>
 
@@ -23,39 +23,54 @@
   <div class="card mb-3">
     <div class="card-body">
       <form method="GET" action="{{ route('attendance.reports.index') }}" class="row g-2">
-        <div class="col-md-3">
-          <label class="form-label">Period</label>
-          <select name="period" class="form-control">
-            <option value="daily" {{ $period==='daily'?'selected':'' }}>Daily</option>
-            <option value="weekly" {{ $period==='weekly'?'selected':'' }}>Weekly</option>
-            <option value="monthly" {{ $period==='monthly'?'selected':'' }}>Monthly</option>
-          </select>
-        </div>
+  <div class="col-md-3">
+    <label class="form-label">Period</label>
+    <select name="period" class="form-control">
+      <option value="daily" {{ $period==='daily'?'selected':'' }}>Daily</option>
+      <option value="weekly" {{ $period==='weekly'?'selected':'' }}>Weekly</option>
+      <option value="monthly" {{ $period==='monthly'?'selected':'' }}>Monthly</option>
+    </select>
+  </div>
 
-        <div class="col-md-3">
-          <label class="form-label">Date</label>
-          <input type="date" name="date" value="{{ $date }}" class="form-control">
-        </div>
+  <div class="col-md-3">
+    <label class="form-label">Date</label>
+    <input type="date" name="date" value="{{ $date }}" class="form-control">
+  </div>
 
-        <div class="col-md-2">
-          <label class="form-label">Late grace (min)</label>
-          <input type="number" name="late_grace" value="{{ $lateGraceMinutes }}" class="form-control" min="0">
-        </div>
+  @if(($viewScope ?? 'self') === 'assigned_companies' || ($viewScope ?? 'self') === 'all_companies')
+    <div class="col-md-3">
+      <label class="form-label">Company</label>
+      <select name="company_id" class="form-control">
+        <option value="">All Companies</option>
+        @foreach($assignedCompanies as $company)
+          <option value="{{ $company->id }}"
+            {{ (string)($selectedCompanyId ?? '') === (string)$company->id ? 'selected' : '' }}>
+            {{ $company->name }}
+          </option>
+        @endforeach
+      </select>
+    </div>
+  @endif
 
-        <div class="col-md-2">
-          <label class="form-label">Overbreak grace</label>
-          <input type="number" name="overbreak_grace" value="{{ $overbreakGrace }}" class="form-control" min="0">
-        </div>
+  <div class="col-md-2">
+    <label class="form-label">Late grace (min)</label>
+    <input type="number" name="late_grace" value="{{ $lateGraceMinutes }}" class="form-control" min="0">
+  </div>
 
-        <div class="col-md-2">
-          <label class="form-label">Overlunch grace</label>
-          <input type="number" name="overlunch_grace" value="{{ $overlunchGrace }}" class="form-control" min="0">
-        </div>
+  <div class="col-md-2">
+    <label class="form-label">Overbreak grace</label>
+    <input type="number" name="overbreak_grace" value="{{ $overbreakGrace }}" class="form-control" min="0">
+  </div>
 
-        <div class="col-md-12">
-          <button class="btn btn-primary">Generate</button>
-        </div>
-      </form>
+  <div class="col-md-2">
+    <label class="form-label">Overlunch grace</label>
+    <input type="number" name="overlunch_grace" value="{{ $overlunchGrace }}" class="form-control" min="0">
+  </div>
+
+  <div class="col-md-12">
+    <button class="btn btn-primary">Generate</button>
+  </div>
+</form>
     </div>
   </div>
 
@@ -78,9 +93,10 @@
           <tr>
             <th>Date</th>
 
-            @if(($viewScope ?? 'self') !== 'self')
-              <th>Employee</th>
-            @endif
+           @if(($viewScope ?? 'self') !== 'self')
+  <td>{{ $r->fullname }}</td>
+  <td>{{ $r->company_name ?? '-' }}</td>
+@endif
 
             <th>Schedule</th>
             <th>Time In</th>
@@ -148,8 +164,8 @@
             </tr>
           @empty
             @php
-              $colspan = (($viewScope ?? 'self') !== 'self') ? 11 : 10;
-            @endphp
+  $colspan = (($viewScope ?? 'self') !== 'self') ? 12 : 10;
+@endphp
             <tr>
               <td colspan="{{ $colspan }}" class="text-center">No attendance logs found.</td>
             </tr>

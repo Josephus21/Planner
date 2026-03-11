@@ -21,9 +21,6 @@ class AttendanceReportController extends Controller
             ]);
         }
 
-        /**
-         * Get my employee info
-         */
         $me = DB::table('employees as e')
             ->leftJoin('roles as r', 'r.id', '=', 'e.role_id')
             ->leftJoin('departments as d', 'd.id', '=', 'e.department_id')
@@ -45,7 +42,22 @@ class AttendanceReportController extends Controller
 
         $roleNorm = Str::lower(trim((string) $me->role_title));
         $deptNorm = Str::lower(trim((string) $me->department_title));
-        $myCompanyId = $me->company_id;
+
+        $myCompanyIds = DB::table('employee_companies')
+            ->where('employee_id', $myEmployeeId)
+            ->pluck('company_id')
+            ->map(fn ($id) => (int) $id)
+            ->push((int) $me->company_id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $assignedCompanies = DB::table('companies')
+            ->whereIn('id', $myCompanyIds)
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get(['id', 'name']);
 
         $isDeveloper = $roleNorm === 'developer';
         $isHrDept = in_array($deptNorm, ['hr', 'human resources', 'human resource']);
@@ -57,12 +69,11 @@ class AttendanceReportController extends Controller
         if ($canViewAllCompanies) {
             $viewScope = 'all_companies';
         } elseif ($canViewCompany) {
-            $viewScope = 'company';
+            $viewScope = 'assigned_companies';
         } else {
             $viewScope = 'self';
         }
 
-        // period: daily | weekly | monthly
         $period = $request->get('period', 'daily');
         $date   = $request->get('date', Carbon::today('Asia/Manila')->toDateString());
 
@@ -83,8 +94,19 @@ class AttendanceReportController extends Controller
         $overbreakGrace   = (int) $request->get('overbreak_grace', 0);
         $overlunchGrace   = (int) $request->get('overlunch_grace', 0);
 
+        /**
+         * Company filter
+         * - developer can filter any company
+         * - HR/admin/manager can filter only assigned companies
+         * - self users do not use company filter
+         */
+        $selectedCompanyId = $request->filled('company_id')
+            ? (int) $request->get('company_id')
+            : null;
+
         $query = DB::table('attendance_logs as al')
             ->join('employees as e', 'e.id', '=', 'al.employee_id')
+            ->leftJoin('companies as c', 'c.id', '=', 'e.company_id')
             ->leftJoin('employee_schedule_assignments as esa', function ($join) {
                 $join->on('esa.employee_id', '=', 'al.employee_id')
                     ->whereRaw('esa.effective_from <= al.work_date')
@@ -93,15 +115,19 @@ class AttendanceReportController extends Controller
             ->leftJoin('schedules as s', 's.id', '=', 'esa.schedule_id')
             ->whereBetween('al.work_date', [$start->toDateString(), $end->toDateString()]);
 
-        /**
-         * Data restriction
-         */
         if ($canViewAllCompanies) {
-            // Developer sees everything
+            if (!is_null($selectedCompanyId)) {
+                $query->where('e.company_id', $selectedCompanyId);
+            }
         } elseif ($canViewCompany) {
-            $query->where('e.company_id', $myCompanyId);
+            $query->whereIn('e.company_id', $myCompanyIds);
+
+            if (!is_null($selectedCompanyId) && in_array($selectedCompanyId, $myCompanyIds)) {
+                $query->where('e.company_id', $selectedCompanyId);
+            }
         } else {
             $query->where('al.employee_id', $myEmployeeId);
+            $selectedCompanyId = null;
         }
 
         $rows = $query
@@ -111,6 +137,7 @@ class AttendanceReportController extends Controller
                 'e.id as employee_id',
                 'e.fullname',
                 'e.company_id',
+                'c.name as company_name',
                 's.name as schedule_name',
 
                 'al.time_in',
@@ -227,6 +254,8 @@ class AttendanceReportController extends Controller
             'canViewCompany' => $canViewCompany,
             'viewScope' => $viewScope,
             'roleTitle' => $me->role_title,
+            'assignedCompanies' => $assignedCompanies,
+            'selectedCompanyId' => $selectedCompanyId,
         ]);
     }
 }
