@@ -57,6 +57,10 @@ public function company()
 {
     return $this->belongsTo(\App\Models\Company::class);
 }
+public function companies()
+{
+    return $this->belongsToMany(Company::class, 'employee_companies')->withTimestamps();
+}
 
 
 }

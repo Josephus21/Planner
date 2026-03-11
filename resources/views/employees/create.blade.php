@@ -98,15 +98,17 @@
 
             <div class="mb-3">
     <label for="company_id" class="form-label">Company</label>
-    <select name="company_id" id="company_id" class="form-control" required>
-        <option value="">Select Company</option>
-        @foreach($companies as $company)
-            <option value="{{ $company->id }}"
-                {{ old('company_id', $employee->company_id ?? '') == $company->id ? 'selected' : '' }}>
-                {{ $company->name }}
-            </option>
-        @endforeach
-    </select>
+    <select name="company_id" class="form-control" required>
+    @foreach($companies as $company)
+        <option value="{{ $company->id }}">{{ $company->name }}</option>
+    @endforeach
+</select>
+
+<select name="company_ids[]" class="form-control" multiple required>
+    @foreach($companies as $company)
+        <option value="{{ $company->id }}">{{ $company->name }}</option>
+    @endforeach
+</select>
 </div>
 
             <div class="mb-3">
