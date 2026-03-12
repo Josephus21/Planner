@@ -18,75 +18,88 @@ class PayrollGenerator
         $employees = Employee::where('status', 'active')->get();
 
         foreach ($employees as $employee) {
-
             $logs = $employee->attendanceLogs()
                 ->whereBetween('work_date', [$from->toDateString(), $to->toDateString()])
                 ->get();
 
-            $daysPresent = $logs->where('status', 'present')->count();
-            $minutesLate = (int) $logs->sum('minutes_late');
+            $daysPresent   = $logs->where('status', 'present')->count();
+            $minutesLate   = (int) $logs->sum('minutes_late');
             $minutesWorked = (int) $logs->sum('minutes_worked');
+            $minutesUndertime = (int) $logs->sum('minutes_undertime');
 
-            // Rates
-            $salary = (float) $employee->salary; // your existing salary column
+            $salary = (float) $employee->salary;
 
-            $dailyRate  = $this->dailyRate($employee, $salary);
-            $hourlyRate = $dailyRate / (float) $employee->work_hours_per_day;
+            $dailyRate = $this->dailyRate($employee, $salary);
+
+            $workHoursPerDay = (float) ($employee->work_hours_per_day ?: 8);
+            $hourlyRate = $dailyRate / $workHoursPerDay;
             $perMinuteRate = $hourlyRate / 60;
 
-            // Gross: absences reduce salary => base on days present
+            // Gross pay based on attendance
             $gross = $dailyRate * $daysPresent;
 
-            // Late deduction: based on salary hourly rate
+            // Attendance-based deductions
             $lateDeduction = $minutesLate * $perMinuteRate;
-
-            // Optional: undertime deduction (if you want same logic)
-            $minutesUndertime = (int) $logs->sum('minutes_undertime');
             $undertimeDeduction = $minutesUndertime * $perMinuteRate;
-// ===================== Employee Deductions =====================
-$employeeDeductions = $employee->deductions()
-    ->with('type')
-    ->where('is_active', 1)
-    ->get();
 
-$employeeDeductionTotal = 0;
+            // Employee deductions
+            $employeeDeductions = $employee->deductions()
+                ->with('type')
+                ->where('is_active', 1)
+                ->get();
 
-foreach ($employeeDeductions as $ed) {
-    $dt = $ed->type;
-    if (!$dt) continue;
+            $employeeDeductionTotal = 0;
+            $deductionBreakdown = [];
 
-    $value = (float) ($ed->amount ?? 0);
-    if ($value <= 0) continue;
+            foreach ($employeeDeductions as $ed) {
+                $dt = $ed->type;
 
-    $deductionAmount = 0;
+                if (!$dt) {
+                    continue;
+                }
 
-    if ($dt->method === 'percent') {
-        // amount is percent (e.g. 5 means 5%)
-        $deductionAmount = ($value / 100) * $gross;
-    } else {
-        // fixed peso
-        $deductionAmount = $value;
-    }
+                $value = (float) ($ed->amount ?? 0);
 
-    // frequency handling (monthly split if semi-monthly period)
-    if ($dt->frequency === 'monthly') {
-        $daysInPeriod = \Carbon\Carbon::parse($period->date_from)
-            ->diffInDays(\Carbon\Carbon::parse($period->date_to)) + 1;
+                if ($value <= 0) {
+                    continue;
+                }
 
-        // if your period is 1-15 / 16-end, split monthly deductions by 2
-        if ($daysInPeriod <= 16) {
-            $deductionAmount = $deductionAmount / 2;
-        }
-    }
+                $deductionAmount = 0;
 
-    $employeeDeductionTotal += round($deductionAmount, 2);
-}
-            // For now: total deductions = late + undertime
-            // Later: add statutory + insurance here
-           $totalDeductions = round($lateDeduction + $undertimeDeduction + $employeeDeductionTotal, 2);
-$net = round($gross - $totalDeductions, 2);
+                // Only PhilHealth should be percent
+                if ($dt->method === 'percent') {
+                    $deductionAmount = ($value / 100) * $gross;
+                } else {
+                    $deductionAmount = $value;
+                }
 
-            // Upsert payroll
+                // Split monthly deductions for semi-monthly payroll
+                if ($dt->frequency === 'monthly') {
+                    $daysInPeriod = Carbon::parse($period->date_from)
+                        ->diffInDays(Carbon::parse($period->date_to)) + 1;
+
+                    if ($daysInPeriod <= 16) {
+                        $deductionAmount = $deductionAmount / 2;
+                    }
+                }
+
+                $deductionAmount = round($deductionAmount, 2);
+
+                $employeeDeductionTotal += $deductionAmount;
+
+                $deductionBreakdown[] = [
+                    'name' => $dt->name,
+                    'amount' => $deductionAmount,
+                ];
+            }
+
+            $totalDeductions = round(
+                $lateDeduction + $undertimeDeduction + $employeeDeductionTotal,
+                2
+            );
+
+            $net = round($gross - $totalDeductions, 2);
+
             $payroll = Payroll::updateOrCreate(
                 [
                     'payroll_period_id' => $period->id,
@@ -94,85 +107,62 @@ $net = round($gross - $totalDeductions, 2);
                 ],
                 [
                     'gross_pay' => round($gross, 2),
-                    'total_deductions' => round($totalDeductions, 2),
-                    'net_pay' => round($net, 2),
+                    'total_deductions' => $totalDeductions,
+                    'net_pay' => $net,
                     'days_present' => $daysPresent,
                     'minutes_late' => $minutesLate,
                     'minutes_worked' => $minutesWorked,
                 ]
             );
 
-            // refresh items
-          // refresh items
-PayrollItem::where('payroll_id', $payroll->id)->delete();
+            PayrollItem::where('payroll_id', $payroll->id)->delete();
 
-// Base Pay item (optional)
-PayrollItem::create([
-    'payroll_id' => $payroll->id,
-    'type' => 'earning',
-    'name' => 'Base pay',
-    'amount' => round($gross, 2),
-]);
+            PayrollItem::create([
+                'payroll_id' => $payroll->id,
+                'type' => 'earning',
+                'name' => 'Base pay',
+                'amount' => round($gross, 2),
+            ]);
 
-// Late / undertime
-if ($lateDeduction > 0) {
-    PayrollItem::create([
-        'payroll_id' => $payroll->id,
-        'type' => 'deduction',
-        'name' => 'Late deduction',
-        'amount' => round($lateDeduction, 2),
-    ]);
-}
+            if ($lateDeduction > 0) {
+                PayrollItem::create([
+                    'payroll_id' => $payroll->id,
+                    'type' => 'deduction',
+                    'name' => 'Late deduction',
+                    'amount' => round($lateDeduction, 2),
+                ]);
+            }
 
-if ($undertimeDeduction > 0) {
-    PayrollItem::create([
-        'payroll_id' => $payroll->id,
-        'type' => 'deduction',
-        'name' => 'Undertime deduction',
-        'amount' => round($undertimeDeduction, 2),
-    ]);
-}
+            if ($undertimeDeduction > 0) {
+                PayrollItem::create([
+                    'payroll_id' => $payroll->id,
+                    'type' => 'deduction',
+                    'name' => 'Undertime deduction',
+                    'amount' => round($undertimeDeduction, 2),
+                ]);
+            }
 
-// Employee deductions list
-foreach ($employeeDeductions as $ed) {
-    $dt = $ed->type;
-    if (!$dt) continue;
-
-    $value = (float) ($ed->amount ?? 0);
-    if ($value <= 0) continue;
-
-    $deductionAmount = ($dt->method === 'percent')
-        ? (($value / 100) * $gross)
-        : $value;
-
-    if ($dt->frequency === 'monthly') {
-        $daysInPeriod = \Carbon\Carbon::parse($period->date_from)
-            ->diffInDays(\Carbon\Carbon::parse($period->date_to)) + 1;
-
-        if ($daysInPeriod <= 16) {
-            $deductionAmount = $deductionAmount / 2;
-        }
-    }
-
-    $deductionAmount = round($deductionAmount, 2);
-
-    PayrollItem::create([
-        'payroll_id' => $payroll->id,
-        'type' => 'deduction',
-        'name' => $dt->name,
-        'amount' => $deductionAmount,
-    ]);
-}
+            foreach ($deductionBreakdown as $item) {
+                PayrollItem::create([
+                    'payroll_id' => $payroll->id,
+                    'type' => 'deduction',
+                    'name' => $item['name'],
+                    'amount' => $item['amount'],
+                ]);
+            }
         }
     }
 
     private function dailyRate(Employee $employee, float $salary): float
     {
-        if ($employee->salary_type === 'daily') return $salary;
-        if ($employee->salary_type === 'hourly') {
-            return $salary * (float)$employee->work_hours_per_day;
+        if ($employee->salary_type === 'daily') {
+            return $salary;
         }
-        // monthly
-        return $salary / (int)$employee->work_days_per_month;
+
+        if ($employee->salary_type === 'hourly') {
+            return $salary * (float) $employee->work_hours_per_day;
+        }
+
+        return $salary / (int) $employee->work_days_per_month;
     }
 }
