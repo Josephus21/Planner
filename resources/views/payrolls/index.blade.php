@@ -3,7 +3,17 @@
 @section('content')
 <div class="page-heading">
     <h3>Payroll</h3>
-    <p class="text-subtitle text-muted">Semi-monthly payroll with automatic computation from attendance logs.</p>
+    <p class="text-subtitle text-muted">
+        Semi-monthly payroll with automatic computation from attendance logs.
+
+        @if(($viewScope ?? 'self') === 'all_companies')
+            | <span class="badge bg-primary">Developer View: All Companies</span>
+        @elseif(($viewScope ?? 'self') === 'assigned_companies')
+            | <span class="badge bg-success">Company View: Assigned Companies Only</span>
+        @else
+            | <span class="badge bg-secondary">My Payroll Only</span>
+        @endif
+    </p>
 </div>
 
 <div class="page-content">
@@ -49,13 +59,18 @@
                         ⚙️ Generate / Recompute
                     </button>
                 </form>
+            </div>
+        </div>
 
-                {{-- Period quick switch --}}
-                <form action="{{ route('payrolls.index') }}" method="GET" class="d-flex gap-2">
-                    <select name="period_id" class="form-select form-select-sm" onchange="this.form.submit()">
+        <div class="card-body">
+            <form action="{{ route('payrolls.index') }}" method="GET" class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label for="period_id" class="form-label">Saved Period</label>
+                    <select name="period_id" id="period_id" class="form-select form-select-sm">
                         <option value="">-- Select Saved Period --</option>
                         @foreach($periods as $p)
-                            <option value="{{ $p->id }}" {{ (string)request('period_id') === (string)$p->id ? 'selected' : '' }}>
+                            <option value="{{ $p->id }}"
+                                {{ (string)($selectedPeriod->id ?? request('period_id')) === (string)$p->id ? 'selected' : '' }}>
                                 {{ \Carbon\Carbon::parse($p->date_from)->format('M d, Y') }}
                                 -
                                 {{ \Carbon\Carbon::parse($p->date_to)->format('M d, Y') }}
@@ -63,11 +78,32 @@
                             </option>
                         @endforeach
                     </select>
-                </form>
-            </div>
-        </div>
+                </div>
 
-        <div class="card-body">
+                @if(($canViewAll ?? false) || ($canViewCompany ?? false))
+                    <div class="col-md-4">
+                        <label for="company_id" class="form-label">Company</label>
+                        <select name="company_id" id="company_id" class="form-select form-select-sm">
+                            <option value="">All Companies</option>
+                            @foreach($assignedCompanies as $company)
+                                <option value="{{ $company->id }}"
+                                    {{ (string)$selectedCompanyId === (string)$company->id ? 'selected' : '' }}>
+                                    {{ $company->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                @endif
+
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-outline-primary btn-sm w-100">
+                        Filter
+                    </button>
+                </div>
+            </form>
+
+            <hr>
+
             @if($selectedPeriod)
                 <div class="d-flex flex-wrap gap-3 align-items-center">
                     <div>
@@ -76,6 +112,7 @@
                         -
                         {{ \Carbon\Carbon::parse($selectedPeriod->date_to)->format('M d, Y') }}
                     </div>
+
                     <div>
                         <strong>Status:</strong>
                         <span class="badge bg-{{ $selectedPeriod->status === 'posted' ? 'success' : 'secondary' }}">
@@ -83,7 +120,22 @@
                         </span>
                     </div>
 
-                    {{-- Optional: post/unpost --}}
+                    @if(($canViewAll ?? false) || ($canViewCompany ?? false))
+                        <div>
+                            <strong>Company Filter:</strong>
+                            @if($selectedCompanyId)
+                                @php
+                                    $selectedCompany = collect($assignedCompanies)->firstWhere('id', (int) $selectedCompanyId);
+                                @endphp
+                                <span class="badge bg-info text-dark">
+                                    {{ $selectedCompany->name ?? 'Selected Company' }}
+                                </span>
+                            @else
+                                <span class="badge bg-light text-dark">All Companies</span>
+                            @endif
+                        </div>
+                    @endif
+
                     @if(Route::has('payroll_periods.post'))
                         <form action="{{ route('payroll_periods.post', $selectedPeriod->id) }}" method="POST">
                             @csrf
@@ -108,7 +160,6 @@
             <span>Payroll Summary</span>
 
             <div class="d-flex gap-2">
-                {{-- Optional export --}}
                 @if(Route::has('payrolls.export') && $selectedPeriod)
                     <a href="{{ route('payrolls.export', $selectedPeriod->id) }}" class="btn btn-outline-primary btn-sm">
                         ⬇️ Export
@@ -124,6 +175,7 @@
                         <tr>
                             <th>#</th>
                             <th>Employee</th>
+                            <th>Company</th>
                             <th>Days Present</th>
                             <th>Minutes Late</th>
                             <th>Minutes Worked</th>
@@ -144,6 +196,13 @@
                                     Emp# {{ $row->employee->id ?? '-' }}
                                 </div>
                             </td>
+
+                            <td>
+                                <span class="badge bg-light text-dark">
+                                    {{ $row->employee->company->name ?? 'N/A' }}
+                                </span>
+                            </td>
+
                             <td>{{ $row->days_present }}</td>
                             <td>{{ $row->minutes_late }}</td>
                             <td>{{ $row->minutes_worked }}</td>
@@ -160,7 +219,6 @@
                                         </a>
                                     @endif
 
-                                    {{-- Quick breakdown modal trigger if you want (optional) --}}
                                     <button type="button"
                                             class="btn btn-secondary btn-sm"
                                             data-bs-toggle="modal"
@@ -180,6 +238,10 @@
                                             <div class="modal-body">
                                                 <div class="mb-2">
                                                     <strong>{{ $row->employee->fullname ?? 'Employee' }}</strong>
+                                                </div>
+
+                                                <div class="text-muted small mb-3">
+                                                    Company: {{ $row->employee->company->name ?? 'N/A' }}
                                                 </div>
 
                                                 <div class="mb-3">
@@ -236,7 +298,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="text-center text-muted">
+                            <td colspan="10" class="text-center text-muted">
                                 No payroll found. Generate payroll by selecting a date range above.
                             </td>
                         </tr>
@@ -244,7 +306,6 @@
                     </tbody>
                 </table>
             </div>
-
         </div>
     </div>
 

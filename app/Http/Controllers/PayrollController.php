@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use App\Models\Payroll;
 use App\Models\PayrollPeriod;
 use App\Services\PayrollGenerator;
@@ -14,30 +16,133 @@ class PayrollController extends Controller
      */
     public function index(Request $request)
     {
-        // list all saved payroll periods
+        $user = auth()->user();
+
+        $myEmployeeId = $user->employee_id ? (int) $user->employee_id : null;
+
+        if (!$myEmployeeId) {
+            return back()->withErrors([
+                'employee' => 'Your account is not linked to an employee record.',
+            ]);
+        }
+
+        $me = DB::table('employees as e')
+            ->leftJoin('roles as r', 'r.id', '=', 'e.role_id')
+            ->leftJoin('departments as d', 'd.id', '=', 'e.department_id')
+            ->where('e.id', $myEmployeeId)
+            ->select([
+                'e.id',
+                'e.company_id',
+                'e.department_id',
+                'r.title as role_title',
+                'd.name as department_title',
+            ])
+            ->first();
+
+        if (!$me) {
+            return back()->withErrors([
+                'employee' => 'Employee record not found.',
+            ]);
+        }
+
+        $roleNorm = Str::lower(trim((string) $me->role_title));
+        $deptNorm = Str::lower(trim((string) $me->department_title));
+
+        $myCompanyIds = DB::table('employee_companies')
+            ->where('employee_id', $myEmployeeId)
+            ->pluck('company_id')
+            ->map(fn ($id) => (int) $id)
+            ->push((int) $me->company_id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $assignedCompanies = DB::table('companies')
+            ->whereIn('id', $myCompanyIds)
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $isDeveloper = $roleNorm === 'developer';
+        $isHrDept = in_array($deptNorm, ['hr', 'human resources', 'human resource']);
+        $isCompanyViewer = in_array($roleNorm, ['admin', 'manager']) || $isHrDept;
+
+        $canViewAllCompanies = $isDeveloper;
+        $canViewCompany = $isCompanyViewer;
+
+        if ($canViewAllCompanies) {
+            $viewScope = 'all_companies';
+        } elseif ($canViewCompany) {
+            $viewScope = 'assigned_companies';
+        } else {
+            $viewScope = 'self';
+        }
+
+        // list all payroll periods
         $periods = PayrollPeriod::orderByDesc('date_from')->get();
 
-        // pick selected period
+        // selected period
         if ($request->filled('period_id')) {
             $selectedPeriod = PayrollPeriod::findOrFail($request->period_id);
         } else {
             $selectedPeriod = PayrollPeriod::orderByDesc('date_from')->first();
         }
 
-        // get payroll rows for the period
-        $payrolls = $selectedPeriod
-            ? Payroll::with(['employee', 'items'])
-                ->where('payroll_period_id', $selectedPeriod->id)
-                ->orderByRaw('net_pay DESC')
-                ->get()
-            : collect();
+        /**
+         * Optional company filter
+         * - Developer: can filter any company
+         * - HR/Admin/Manager: can filter assigned companies only
+         * - Self: no company filter
+         */
+        $selectedCompanyId = $request->filled('company_id')
+            ? (int) $request->company_id
+            : null;
 
-        return view('payrolls.index', compact('periods', 'selectedPeriod', 'payrolls'));
+        if ($selectedPeriod) {
+            $query = Payroll::with(['employee', 'items', 'period'])
+                ->where('payroll_period_id', $selectedPeriod->id)
+                ->join('employees as e', 'e.id', '=', 'payrolls.employee_id')
+                ->leftJoin('companies as c', 'c.id', '=', 'e.company_id');
+
+            if ($canViewAllCompanies) {
+                if (!is_null($selectedCompanyId)) {
+                    $query->where('e.company_id', $selectedCompanyId);
+                }
+            } elseif ($canViewCompany) {
+                $query->whereIn('e.company_id', $myCompanyIds);
+
+                if (!is_null($selectedCompanyId) && in_array($selectedCompanyId, $myCompanyIds)) {
+                    $query->where('e.company_id', $selectedCompanyId);
+                }
+            } else {
+                $query->where('payrolls.employee_id', $myEmployeeId);
+                $selectedCompanyId = null;
+            }
+
+            $payrolls = $query
+                ->select('payrolls.*')
+                ->orderByDesc('payrolls.net_pay')
+                ->get();
+        } else {
+            $payrolls = collect();
+        }
+
+        return view('payrolls.index', [
+            'periods' => $periods,
+            'selectedPeriod' => $selectedPeriod,
+            'payrolls' => $payrolls,
+            'assignedCompanies' => $assignedCompanies,
+            'selectedCompanyId' => $selectedCompanyId,
+            'canViewAll' => $canViewAllCompanies,
+            'canViewCompany' => $canViewCompany,
+            'viewScope' => $viewScope,
+            'roleTitle' => $me->role_title,
+        ]);
     }
 
     /**
-     * Generate / Recompute payroll (semi-monthly but flexible)
-     * Takes date_from and date_to, creates a period if not exists, then computes payroll.
+     * Generate / Recompute payroll
      */
     public function generate(Request $request, PayrollGenerator $generator)
     {
@@ -51,7 +156,6 @@ class PayrollController extends Controller
             'date_to'   => $validated['date_to'],
         ]);
 
-        // Prevent recompute if posted/locked
         if ($period->status === 'posted') {
             return redirect()
                 ->route('payrolls.index', ['period_id' => $period->id])
@@ -66,22 +170,142 @@ class PayrollController extends Controller
     }
 
     /**
-     * View a single payroll record (with breakdown)
+     * View single payroll
      */
     public function show(Payroll $payroll)
     {
+        $user = auth()->user();
+        $myEmployeeId = $user->employee_id ? (int) $user->employee_id : null;
+
+        if (!$myEmployeeId) {
+            return back()->withErrors([
+                'employee' => 'Your account is not linked to an employee record.',
+            ]);
+        }
+
+        $me = DB::table('employees as e')
+            ->leftJoin('roles as r', 'r.id', '=', 'e.role_id')
+            ->leftJoin('departments as d', 'd.id', '=', 'e.department_id')
+            ->where('e.id', $myEmployeeId)
+            ->select([
+                'e.id',
+                'e.company_id',
+                'r.title as role_title',
+                'd.name as department_title',
+            ])
+            ->first();
+
+        if (!$me) {
+            return back()->withErrors([
+                'employee' => 'Employee record not found.',
+            ]);
+        }
+
+        $roleNorm = Str::lower(trim((string) $me->role_title));
+        $deptNorm = Str::lower(trim((string) $me->department_title));
+
+        $myCompanyIds = DB::table('employee_companies')
+            ->where('employee_id', $myEmployeeId)
+            ->pluck('company_id')
+            ->map(fn ($id) => (int) $id)
+            ->push((int) $me->company_id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $isDeveloper = $roleNorm === 'developer';
+        $isHrDept = in_array($deptNorm, ['hr', 'human resources', 'human resource']);
+        $isCompanyViewer = in_array($roleNorm, ['admin', 'manager']) || $isHrDept;
+
         $payroll->load(['employee', 'items', 'period']);
+
+        if (!$payroll->employee) {
+            return back()->withErrors([
+                'payroll' => 'Payroll employee record not found.',
+            ]);
+        }
+
+        if (!$isDeveloper) {
+            if ($isCompanyViewer) {
+                if (!in_array((int) $payroll->employee->company_id, $myCompanyIds)) {
+                    abort(403, 'You are not allowed to view this payroll record.');
+                }
+            } else {
+                if ((int) $payroll->employee_id !== $myEmployeeId) {
+                    abort(403, 'You are not allowed to view this payroll record.');
+                }
+            }
+        }
+
         return view('payrolls.show', compact('payroll'));
     }
 
     /**
-     * Delete payroll record (optional)
+     * Delete payroll record
      */
     public function destroy(Payroll $payroll)
     {
-        // block delete if period posted
+        $user = auth()->user();
+        $myEmployeeId = $user->employee_id ? (int) $user->employee_id : null;
+
+        if (!$myEmployeeId) {
+            return back()->withErrors([
+                'employee' => 'Your account is not linked to an employee record.',
+            ]);
+        }
+
+        $me = DB::table('employees as e')
+            ->leftJoin('roles as r', 'r.id', '=', 'e.role_id')
+            ->leftJoin('departments as d', 'd.id', '=', 'e.department_id')
+            ->where('e.id', $myEmployeeId)
+            ->select([
+                'e.id',
+                'e.company_id',
+                'r.title as role_title',
+                'd.name as department_title',
+            ])
+            ->first();
+
+        if (!$me) {
+            return back()->withErrors([
+                'employee' => 'Employee record not found.',
+            ]);
+        }
+
+        $roleNorm = Str::lower(trim((string) $me->role_title));
+        $deptNorm = Str::lower(trim((string) $me->department_title));
+
+        $myCompanyIds = DB::table('employee_companies')
+            ->where('employee_id', $myEmployeeId)
+            ->pluck('company_id')
+            ->map(fn ($id) => (int) $id)
+            ->push((int) $me->company_id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $isDeveloper = $roleNorm === 'developer';
+        $isHrDept = in_array($deptNorm, ['hr', 'human resources', 'human resource']);
+        $isCompanyViewer = in_array($roleNorm, ['admin', 'manager']) || $isHrDept;
+
+        $payroll->load(['employee', 'period']);
+
+        if (!$isDeveloper) {
+            if ($isCompanyViewer) {
+                if (!$payroll->employee || !in_array((int) $payroll->employee->company_id, $myCompanyIds)) {
+                    abort(403, 'You are not allowed to delete this payroll record.');
+                }
+            } else {
+                abort(403, 'You are not allowed to delete this payroll record.');
+            }
+        }
+
         if ($payroll->period && $payroll->period->status === 'posted') {
-            return back()->withErrors(['delete' => 'Cannot delete payroll from a POSTED period.']);
+            return back()->withErrors([
+                'delete' => 'Cannot delete payroll from a POSTED period.'
+            ]);
         }
 
         $periodId = $payroll->payroll_period_id;
