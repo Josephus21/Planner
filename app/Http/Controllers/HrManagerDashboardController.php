@@ -68,7 +68,7 @@ class HrManagerDashboardController extends Controller
         $departmentLabels = $departments->pluck('name');
         $departmentCounts = $departments->pluck('employees_count');
 
-        return view('dashboard.hr-manager', compact(
+        return view('hr.dashboard', compact(
             'totalEmployees',
             'presentToday',
             'lateToday',
