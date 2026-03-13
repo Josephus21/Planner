@@ -58,7 +58,7 @@
 
     <div class="card company-card text-white"
          style="
-           background-image:url('{{ url('company-logo/'.basename($company->logo)) }}')">
+           background-image:url('{{ url('logos/'.basename($company->logo)) }}')">
 
         <div class="card-overlay"></div>
 
