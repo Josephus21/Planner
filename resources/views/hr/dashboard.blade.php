@@ -3,31 +3,13 @@
 @section('content')
 <div class="page-heading">
     <h3>HR Dashboard</h3>
-    <p class="text-subtitle text-muted">Overview of employees, attendance, leave, and payroll.</p>
+    <p class="text-subtitle text-muted">Overview of attendance, companies, leave, and payroll.</p>
 </div>
 
 <div class="page-content">
 <section class="section">
 
     <div class="row">
-        <div class="col-6 col-lg-2 col-md-4">
-            <div class="card">
-                <div class="card-body px-3 py-4-4">
-                    <h6 class="text-muted font-semibold">Employees</h6>
-                    <h4 class="font-extrabold mb-0">{{ $totalEmployees ?? 0 }}</h4>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-6 col-lg-2 col-md-4">
-            <div class="card">
-                <div class="card-body px-3 py-4-4">
-                    <h6 class="text-muted font-semibold">Present Today</h6>
-                    <h4 class="font-extrabold mb-0">{{ $presentToday ?? 0 }}</h4>
-                </div>
-            </div>
-        </div>
-
         <div class="col-6 col-lg-2 col-md-4">
             <div class="card">
                 <div class="card-body px-3 py-4-4">
@@ -46,23 +28,18 @@
             </div>
         </div>
 
-        <div class="col-6 col-lg-2 col-md-4">
-            <div class="card">
-                <div class="card-body px-3 py-4-4">
-                    <h6 class="text-muted font-semibold">On Leave</h6>
-                    <h4 class="font-extrabold mb-0">{{ $onLeaveToday ?? 0 }}</h4>
+        @forelse($companyCards as $company)
+            <div class="col-6 col-lg-2 col-md-4">
+                <div class="card">
+                    <div class="card-body px-3 py-4-4">
+                        <h6 class="text-muted font-semibold">{{ $company->name }}</h6>
+                        <h4 class="font-extrabold mb-0">{{ $company->employees_count ?? 0 }}</h4>
+                        <small class="text-muted">Employees</small>
+                    </div>
                 </div>
             </div>
-        </div>
-
-        <div class="col-6 col-lg-2 col-md-4">
-            <div class="card">
-                <div class="card-body px-3 py-4-4">
-                    <h6 class="text-muted font-semibold">Pending Leave</h6>
-                    <h4 class="font-extrabold mb-0">{{ $pendingLeaveRequests ?? 0 }}</h4>
-                </div>
-            </div>
-        </div>
+        @empty
+        @endforelse
     </div>
 
     <div class="row">

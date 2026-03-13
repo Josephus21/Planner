@@ -7,6 +7,7 @@ use App\Models\AttendanceLog;
 use App\Models\LeaveRequest;
 use App\Models\Payroll;
 use App\Models\Department;
+use App\Models\Company;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Schema;
 
@@ -17,42 +18,18 @@ class HrManagerDashboardController extends Controller
         $today = Carbon::now('Asia/Manila')->toDateString();
         $now   = Carbon::now('Asia/Manila');
 
-        $totalEmployees = 0;
-        $presentToday = 0;
         $lateToday = 0;
         $absentToday = 0;
-        $onLeaveToday = 0;
-        $pendingLeaveRequests = 0;
         $payrollCount = 0;
         $pendingLeaves = collect();
         $recentAttendance = collect();
         $upcomingBirthdays = collect();
         $departmentLabels = collect();
         $departmentCounts = collect();
+        $companyCards = collect();
 
-        // Employees count
-        if (class_exists(Employee::class) && Schema::hasTable('employees')) {
-            $employeeQuery = Employee::query();
-
-            if (Schema::hasColumn('employees', 'status')) {
-                $totalEmployees = (clone $employeeQuery)
-                    ->where('status', 'active')
-                    ->count();
-            } else {
-                $totalEmployees = (clone $employeeQuery)->count();
-            }
-        }
-
-        // Attendance stats
+        // Late today
         if (class_exists(AttendanceLog::class) && Schema::hasTable('attendance_logs')) {
-            $presentQuery = AttendanceLog::where('work_date', $today);
-
-            if (Schema::hasColumn('attendance_logs', 'time_in')) {
-                $presentQuery->whereNotNull('time_in');
-            }
-
-            $presentToday = $presentQuery->count();
-
             if (Schema::hasColumn('attendance_logs', 'minutes_late')) {
                 $lateToday = AttendanceLog::where('work_date', $today)
                     ->where('minutes_late', '>', 0)
@@ -96,22 +73,24 @@ class HrManagerDashboardController extends Controller
                 ->count();
         }
 
-        // Leave stats
+        // Company employee counts via employee_companies pivot
+        if (
+            class_exists(Company::class) &&
+            Schema::hasTable('companies') &&
+            method_exists(new Company, 'employees')
+        ) {
+            $companyCards = Company::withCount(['employees' => function ($q) {
+                if (Schema::hasColumn('employees', 'status')) {
+                    $q->where('employees.status', 'active');
+                }
+            }])
+            ->orderBy('name')
+            ->get();
+        }
+
+        // Pending leave requests
         if (class_exists(LeaveRequest::class) && Schema::hasTable('leave_requests')) {
-            if (
-                Schema::hasColumn('leave_requests', 'status') &&
-                Schema::hasColumn('leave_requests', 'start_date') &&
-                Schema::hasColumn('leave_requests', 'end_date')
-            ) {
-                $onLeaveToday = LeaveRequest::where('status', 'approved')
-                    ->whereDate('start_date', '<=', $today)
-                    ->whereDate('end_date', '>=', $today)
-                    ->count();
-            }
-
             if (Schema::hasColumn('leave_requests', 'status')) {
-                $pendingLeaveRequests = LeaveRequest::where('status', 'pending')->count();
-
                 $pendingLeavesQuery = LeaveRequest::where('status', 'pending');
 
                 if (method_exists(new LeaveRequest, 'employee')) {
@@ -142,6 +121,10 @@ class HrManagerDashboardController extends Controller
                 $birthdayQuery->with('department');
             }
 
+            if (Schema::hasColumn('employees', 'status')) {
+                $birthdayQuery->where('status', 'active');
+            }
+
             $upcomingBirthdays = $birthdayQuery
                 ->get()
                 ->filter(function ($employee) {
@@ -166,24 +149,26 @@ class HrManagerDashboardController extends Controller
             Schema::hasTable('departments') &&
             method_exists(new Department, 'employees')
         ) {
-            $departments = Department::withCount('employees')->get();
+            $departments = Department::withCount(['employees' => function ($q) {
+                if (Schema::hasColumn('employees', 'status')) {
+                    $q->where('status', 'active');
+                }
+            }])->get();
+
             $departmentLabels = $departments->pluck('name');
             $departmentCounts = $departments->pluck('employees_count');
         }
 
         return view('hr.dashboard', compact(
-            'totalEmployees',
-            'presentToday',
             'lateToday',
             'absentToday',
-            'onLeaveToday',
-            'pendingLeaveRequests',
             'payrollCount',
             'pendingLeaves',
             'recentAttendance',
             'upcomingBirthdays',
             'departmentLabels',
-            'departmentCounts'
+            'departmentCounts',
+            'companyCards'
         ));
     }
 }
