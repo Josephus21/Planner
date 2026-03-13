@@ -60,20 +60,7 @@
                 <h1 class="text-6xl font-bold text-blue-600 mb-4">Wu Ventures HRIS</h1>
                 <p class="text-2xl text-slate-700 mb-8">Look Good. Print Bold. Stay Fresh</p>
 
-                <div class="space-y-4 text-slate-600 text-xl">
-        <div class="flex items-center gap-3">
-            <span class="w-3 h-3 rounded-full bg-blue-600"></span>
-            <span class="font-medium">Style</span>
-        </div>
-        <div class="flex items-center gap-3">
-            <span class="w-3 h-3 rounded-full bg-blue-600"></span>
-            <span class="font-medium">Print</span>
-        </div>
-        <div class="flex items-center gap-3">
-            <span class="w-3 h-3 rounded-full bg-blue-600"></span>
-            <span class="font-medium">Clean</span>
-        </div>
-                </div>
+                <
             </div>
 
             <!-- Right -->
