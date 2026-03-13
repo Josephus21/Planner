@@ -41,6 +41,7 @@ use App\Http\Controllers\JobOrderController;
 use App\Http\Controllers\JobOrderDashboardController;
 
 use App\Http\Controllers\ManagerDashboardController;
+use App\Http\Controllers\HrManagerDashboardController;
 
 Route::get('/', function () {
     return view('auth.login');
@@ -60,12 +61,17 @@ Route::middleware(['auth'])->group(function () {
     | DASHBOARD
     |---------------------------------------------------------------------------
     */
+
+
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->name('dashboard')
         ->middleware('permission:dashboard.view');
 
     Route::get('/employee-dashboard', [EmployeeDashboardController::class, 'index'])
         ->name('employee.dashboard');
+
+Route::get('/hr/dashboard', [HrManagerDashboardController::class, 'index'])
+    ->name('hr.dashboard');
 
     Route::get('/employee/schedule-events', [EmployeeDashboardController::class, 'scheduleEvents'])
         ->name('employee.schedule.events');
