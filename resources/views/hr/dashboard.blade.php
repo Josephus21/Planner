@@ -174,10 +174,14 @@
                             @forelse($upcomingBirthdays as $employee)
                                 <tr>
                                     <td>
-    {{ optional($log->employee)->full_name
-        ?? optional($log->employee)->name
-        ?? (optional($log->employee)->first_name . ' ' . optional($log->employee)->last_name)
-        ?? 'N/A' }}
+    @php
+        $emp = $log->employee;
+        $employeeName = $emp
+            ? trim(($emp->first_name ?? '') . ' ' . ($emp->last_name ?? ''))
+            : null;
+    @endphp
+
+    {{ $emp->full_name ?? $emp->name ?? ($employeeName !== '' ? $employeeName : null) ?? 'N/A' }}
 </td>
                                     <td>{{ optional($employee->department)->name ?? 'N/A' }}</td>
                                     <td>
