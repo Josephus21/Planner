@@ -66,7 +66,7 @@ Route::middleware(['auth'])->group(function () {
     |---------------------------------------------------------------------------
     */
 
-Route::get('/company-logo/{file}', function ($file) {
+Route::get('/logo/{file}', function ($file) {
 
     $path = app_path('logos/' . $file);
 
