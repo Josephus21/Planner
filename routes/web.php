@@ -43,6 +43,10 @@ use App\Http\Controllers\JobOrderDashboardController;
 use App\Http\Controllers\ManagerDashboardController;
 use App\Http\Controllers\HrManagerDashboardController;
 
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Response;
+
+
 Route::get('/', function () {
     return view('auth.login');
 });
@@ -62,7 +66,17 @@ Route::middleware(['auth'])->group(function () {
     |---------------------------------------------------------------------------
     */
 
+Route::get('/company-logo/{file}', function ($file) {
 
+    $path = app_path('logos/' . $file);
+
+    if (!File::exists($path)) {
+        abort(404);
+    }
+
+    return Response::file($path);
+
+});
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->name('dashboard')
         ->middleware('permission:dashboard.view');
