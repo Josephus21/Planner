@@ -174,11 +174,11 @@
                             @forelse($upcomingBirthdays as $employee)
                                 <tr>
                                     <td>
-                                        {{ $employee->full_name
-                                            ?? $employee->name
-                                            ?? $employee->first_name
-                                            ?? 'N/A' }}
-                                    </td>
+    {{ optional($log->employee)->full_name
+        ?? optional($log->employee)->name
+        ?? (optional($log->employee)->first_name . ' ' . optional($log->employee)->last_name)
+        ?? 'N/A' }}
+</td>
                                     <td>{{ optional($employee->department)->name ?? 'N/A' }}</td>
                                     <td>
                                         {{ !empty($employee->birthdate) ? \Carbon\Carbon::parse($employee->birthdate)->format('M d') : '-' }}

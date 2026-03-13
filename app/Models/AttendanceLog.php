@@ -66,8 +66,8 @@ class AttendanceLog extends Model
         'time_out' => 'datetime',
     ];
 
-    public function employee()
-    {
-        return $this->belongsTo(Employee::class);
-    }
+    public function attendanceLogs()
+{
+    return $this->hasMany(\App\Models\AttendanceLog::class, 'employee_id');
+}
 }
