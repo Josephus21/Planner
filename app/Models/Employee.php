@@ -42,7 +42,7 @@ public function employee()
 
 public function attendanceLogs()
 {
-    return $this->hasMany(\App\Models\AttendanceLog::class);
+    return $this->hasMany(\App\Models\AttendanceLog::class, 'employee_id', 'id');
 }
 public function deductions()
 {
