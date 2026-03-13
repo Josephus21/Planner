@@ -60,7 +60,7 @@
                 <h1 class="text-6xl font-bold text-blue-600 mb-4">Wu Ventures HRIS</h1>
                 <p class="text-2xl text-slate-700 mb-8">Look Good. Print Bold. Stay Fresh</p>
 
-                <
+                
             </div>
 
             <!-- Right -->
