@@ -4,7 +4,7 @@
     @stack('styles')
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Planner</title>
+    <title>GFX - HRIS</title>
 
     <link rel="shortcut icon" href="{{ asset('mazer/dist/assets/compiled/svg/favicon.svg') }}" type="image/x-icon">
     <link rel="stylesheet" href="{{ asset('mazer/dist/assets/compiled/css/app.css') }}">
@@ -158,7 +158,7 @@
                             </a>
                         </li>
                     @endif
-                    
+
                     {{-- TASK --}}
                     <li class="sidebar-title">TASK</li>
 
