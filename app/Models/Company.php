@@ -8,12 +8,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 class Company extends Model
 {
     use HasFactory;
-
-    protected $fillable = [
-        'name',
-        'code',
-        'status',
-    ];
+protected $fillable = [
+    'name',
+    'code',
+    'status',
+    'logo'
+];
 
     public function employees()
 {

@@ -1,5 +1,30 @@
 @extends('layouts.dashboard')
+<style>
 
+.company-card{
+    background-size:cover;
+    background-position:center;
+    border-radius:12px;
+    overflow:hidden;
+    position:relative;
+    min-height:120px;
+}
+
+.company-card .card-overlay{
+    position:absolute;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    background:rgba(0,0,0,0.55);
+}
+
+.company-card .card-body{
+    position:relative;
+    z-index:2;
+}
+
+</style>
 @section('content')
 <div class="page-heading">
     <h3>HR Dashboard</h3>
@@ -29,17 +54,32 @@
         </div>
 
         @forelse($companyCards as $company)
-            <div class="col-6 col-lg-2 col-md-4">
-                <div class="card">
-                    <div class="card-body px-3 py-4-4">
-                        <h6 class="text-muted font-semibold">{{ $company->name }}</h6>
-                        <h4 class="font-extrabold mb-0">{{ $company->employees_count ?? 0 }}</h4>
-                        <small class="text-muted">Employees</small>
-                    </div>
-                </div>
-            </div>
-        @empty
-        @endforelse
+<div class="col-6 col-lg-2 col-md-4">
+
+    <div class="card company-card text-white"
+         style="
+            background-image:url('{{ $company->logo ? asset('storage/'.$company->logo) : asset('images/default-company.png') }}');
+         ">
+
+        <div class="card-overlay"></div>
+
+        <div class="card-body position-relative px-3 py-4-4">
+
+            <h6 class="font-semibold">{{ $company->name }}</h6>
+
+            <h3 class="font-extrabold mb-0">
+                {{ $company->employees_count ?? 0 }}
+            </h3>
+
+            <small>Employees</small>
+
+        </div>
+
+    </div>
+
+</div>
+@empty
+@endforelse
     </div>
 
     <div class="row">
