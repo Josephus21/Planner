@@ -70,7 +70,7 @@
                 {{ $company->employees_count ?? 0 }}
             </h3>
 
-            <small>Employees</small>
+        
 
         </div>
 
