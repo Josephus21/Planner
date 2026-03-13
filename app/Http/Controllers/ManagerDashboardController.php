@@ -60,7 +60,7 @@ class ManagerDashboardController extends Controller
             ->take(10)
             ->get();
 
-        return view('manager.dashboard', compact(
+        return view('hr.dashboard', compact(
             'totalJobOrders',
             'plannedJobOrders',
             'pendingJobOrders',
