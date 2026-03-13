@@ -66,6 +66,7 @@
     </div>
 
     <div class="row">
+        {{-- Recent Attendance Logs --}}
         <div class="col-lg-8">
             <div class="card">
                 <div class="card-header">
@@ -85,15 +86,16 @@
                         <tbody>
                             @forelse($recentAttendance as $log)
                                 <tr>
+                                    <td>{{ optional($log->employee)->fullname ?? 'N/A' }}</td>
                                     <td>
-                                        {{ optional($log->employee)->full_name
-                                            ?? optional($log->employee)->name
-                                            ?? optional($log->employee)->first_name
-                                            ?? 'N/A' }}
+                                        {{ !empty($log->work_date) ? \Carbon\Carbon::parse($log->work_date)->format('M d, Y') : '-' }}
                                     </td>
-                                    <td>{{ $log->work_date ?? '-' }}</td>
-                                    <td>{{ $log->time_in ?? '-' }}</td>
-                                    <td>{{ $log->time_out ?? '-' }}</td>
+                                    <td>
+                                        {{ !empty($log->time_in) ? \Carbon\Carbon::parse($log->time_in)->format('h:i A') : '-' }}
+                                    </td>
+                                    <td>
+                                        {{ !empty($log->time_out) ? \Carbon\Carbon::parse($log->time_out)->format('h:i A') : '-' }}
+                                    </td>
                                     <td>{{ $log->minutes_late ?? 0 }}</td>
                                 </tr>
                             @empty
@@ -107,6 +109,7 @@
             </div>
         </div>
 
+        {{-- Quick Stats + Pending Leave --}}
         <div class="col-lg-4">
             <div class="card">
                 <div class="card-header">
@@ -137,15 +140,17 @@
                 <div class="card-body">
                     @forelse($pendingLeaves as $leave)
                         <div class="mb-3 border-bottom pb-2">
-                            <div class="fw-bold">
-                                {{ optional($leave->employee)->full_name
-                                    ?? optional($leave->employee)->name
-                                    ?? optional($leave->employee)->first_name
-                                    ?? 'Employee' }}
-                            </div>
-                            <small class="text-muted">
+                            <div class="fw-bold">{{ optional($leave->employee)->fullname ?? 'Employee' }}</div>
+                            <small class="text-muted d-block">
                                 {{ $leave->leave_type ?? 'Leave Request' }}
                             </small>
+                            @if(!empty($leave->start_date) || !empty($leave->end_date))
+                                <small class="text-muted d-block">
+                                    {{ !empty($leave->start_date) ? \Carbon\Carbon::parse($leave->start_date)->format('M d, Y') : '-' }}
+                                    -
+                                    {{ !empty($leave->end_date) ? \Carbon\Carbon::parse($leave->end_date)->format('M d, Y') : '-' }}
+                                </small>
+                            @endif
                         </div>
                     @empty
                         <p class="text-muted mb-0">No pending leave requests.</p>
@@ -156,6 +161,7 @@
     </div>
 
     <div class="row">
+        {{-- Upcoming Birthdays --}}
         <div class="col-lg-6">
             <div class="card">
                 <div class="card-header">
@@ -173,19 +179,10 @@
                         <tbody>
                             @forelse($upcomingBirthdays as $employee)
                                 <tr>
-                                    <td>
-    @php
-        $emp = $log->employee;
-        $employeeName = $emp
-            ? trim(($emp->first_name ?? '') . ' ' . ($emp->last_name ?? ''))
-            : null;
-    @endphp
-
-    {{ $emp->full_name ?? $emp->name ?? ($employeeName !== '' ? $employeeName : null) ?? 'N/A' }}
-</td>
+                                    <td>{{ $employee->fullname ?? 'N/A' }}</td>
                                     <td>{{ optional($employee->department)->name ?? 'N/A' }}</td>
                                     <td>
-                                        {{ !empty($employee->birthdate) ? \Carbon\Carbon::parse($employee->birthdate)->format('M d') : '-' }}
+                                        {{ !empty($employee->birth_date) ? \Carbon\Carbon::parse($employee->birth_date)->format('M d') : '-' }}
                                     </td>
                                 </tr>
                             @empty
@@ -199,6 +196,7 @@
             </div>
         </div>
 
+        {{-- Department Summary --}}
         <div class="col-lg-6">
             <div class="card">
                 <div class="card-header">

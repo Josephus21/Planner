@@ -17,7 +17,6 @@ class HrManagerDashboardController extends Controller
         $today = Carbon::now('Asia/Manila')->toDateString();
         $now   = Carbon::now('Asia/Manila');
 
-        // Safe defaults
         $totalEmployees = 0;
         $presentToday = 0;
         $lateToday = 0;
@@ -31,8 +30,8 @@ class HrManagerDashboardController extends Controller
         $departmentLabels = collect();
         $departmentCounts = collect();
 
-        // 1) Employees
-        if (class_exists(Employee::class)) {
+        // Employees count
+        if (class_exists(Employee::class) && Schema::hasTable('employees')) {
             $employeeQuery = Employee::query();
 
             if (Schema::hasColumn('employees', 'status')) {
@@ -44,7 +43,7 @@ class HrManagerDashboardController extends Controller
             }
         }
 
-        // 2) Attendance basic counts
+        // Attendance stats
         if (class_exists(AttendanceLog::class) && Schema::hasTable('attendance_logs')) {
             $presentQuery = AttendanceLog::where('work_date', $today);
 
@@ -60,24 +59,25 @@ class HrManagerDashboardController extends Controller
                     ->count();
             }
 
-            // Recent attendance
             if (method_exists(new AttendanceLog, 'employee')) {
                 $recentAttendance = AttendanceLog::with('employee')
                     ->orderByDesc('work_date')
+                    ->orderByDesc('id')
                     ->take(10)
                     ->get();
             } else {
                 $recentAttendance = AttendanceLog::orderByDesc('work_date')
+                    ->orderByDesc('id')
                     ->take(10)
                     ->get();
             }
         }
 
-        // 3) Absent today (only if relation exists)
+        // Absent today
         if (
             class_exists(Employee::class) &&
-            method_exists(new Employee, 'attendanceLogs') &&
-            Schema::hasTable('employees')
+            Schema::hasTable('employees') &&
+            method_exists(new Employee, 'attendanceLogs')
         ) {
             $absentQuery = Employee::query();
 
@@ -88,11 +88,15 @@ class HrManagerDashboardController extends Controller
             $absentToday = $absentQuery
                 ->whereDoesntHave('attendanceLogs', function ($q) use ($today) {
                     $q->where('work_date', $today);
+
+                    if (Schema::hasColumn('attendance_logs', 'time_in')) {
+                        $q->whereNotNull('time_in');
+                    }
                 })
                 ->count();
         }
 
-        // 4) Leave requests
+        // Leave stats
         if (class_exists(LeaveRequest::class) && Schema::hasTable('leave_requests')) {
             if (
                 Schema::hasColumn('leave_requests', 'status') &&
@@ -108,31 +112,31 @@ class HrManagerDashboardController extends Controller
             if (Schema::hasColumn('leave_requests', 'status')) {
                 $pendingLeaveRequests = LeaveRequest::where('status', 'pending')->count();
 
-                $pendingLeaveQuery = LeaveRequest::where('status', 'pending');
+                $pendingLeavesQuery = LeaveRequest::where('status', 'pending');
 
                 if (method_exists(new LeaveRequest, 'employee')) {
-                    $pendingLeaveQuery->with('employee');
+                    $pendingLeavesQuery->with('employee');
                 }
 
-                $pendingLeaves = $pendingLeaveQuery
+                $pendingLeaves = $pendingLeavesQuery
                     ->latest()
                     ->take(5)
                     ->get();
             }
         }
 
-        // 5) Payroll
+        // Payroll count
         if (class_exists(Payroll::class) && Schema::hasTable('payrolls')) {
             $payrollCount = Payroll::count();
         }
 
-        // 6) Upcoming birthdays
+        // Upcoming birthdays
         if (
             class_exists(Employee::class) &&
             Schema::hasTable('employees') &&
-            Schema::hasColumn('employees', 'birthdate')
+            Schema::hasColumn('employees', 'birth_date')
         ) {
-            $birthdayQuery = Employee::whereNotNull('birthdate');
+            $birthdayQuery = Employee::whereNotNull('birth_date');
 
             if (method_exists(new Employee, 'department')) {
                 $birthdayQuery->with('department');
@@ -141,19 +145,22 @@ class HrManagerDashboardController extends Controller
             $upcomingBirthdays = $birthdayQuery
                 ->get()
                 ->filter(function ($employee) {
-                    return !empty($employee->birthdate);
+                    return !empty($employee->birth_date);
                 })
                 ->sortBy(function ($employee) use ($now) {
-                    $birthday = Carbon::parse($employee->birthdate)->year($now->year);
+                    $birthday = Carbon::parse($employee->birth_date)->year($now->year);
+
                     if ($birthday->lt($now)) {
                         $birthday->addYear();
                     }
+
                     return $birthday->timestamp;
                 })
-                ->take(5);
+                ->take(5)
+                ->values();
         }
 
-        // 7) Department chart
+        // Department summary
         if (
             class_exists(Department::class) &&
             Schema::hasTable('departments') &&
