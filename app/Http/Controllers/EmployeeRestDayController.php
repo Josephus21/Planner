@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Employee;
-use App\Models\EmployeeRestDay;
+use App\Models\EmployeeRestDayDate;
 use Illuminate\Http\Request;
 
 class EmployeeRestDayController extends Controller
@@ -23,8 +23,8 @@ class EmployeeRestDayController extends Controller
         $roleTitle = strtolower(trim($myEmployee->role->title ?? ''));
         $accessibleCompanyIds = $this->getAccessibleCompanyIds($myEmployee);
 
-        $query = Employee::with(['restDays' => function ($q) {
-            $q->where('is_active', 1);
+        $query = Employee::with(['restDayDates' => function ($q) {
+            $q->where('is_active', 1)->orderBy('rest_date');
         }]);
 
         if ($roleTitle !== 'developer') {
@@ -56,8 +56,8 @@ class EmployeeRestDayController extends Controller
         $roleTitle = strtolower(trim($myEmployee->role->title ?? ''));
         $accessibleCompanyIds = $this->getAccessibleCompanyIds($myEmployee);
 
-        $query = Employee::with(['restDays' => function ($q) {
-            $q->where('is_active', 1);
+        $query = Employee::with(['restDayDates' => function ($q) {
+            $q->where('is_active', 1)->orderBy('rest_date');
         }]);
 
         if ($roleTitle !== 'developer') {
@@ -71,21 +71,12 @@ class EmployeeRestDayController extends Controller
 
         $employee = $query->findOrFail($id);
 
-        $selectedDays = $employee->restDays
-            ->pluck('day_name')
+        $selectedDates = $employee->restDayDates
+            ->pluck('rest_date')
+            ->map(fn ($date) => \Carbon\Carbon::parse($date)->format('Y-m-d'))
             ->toArray();
 
-        $days = [
-            'monday',
-            'tuesday',
-            'wednesday',
-            'thursday',
-            'friday',
-            'saturday',
-            'sunday',
-        ];
-
-        return view('employee-rest-days.edit', compact('employee', 'selectedDays', 'days'));
+        return view('employee-rest-days.edit', compact('employee', 'selectedDates'));
     }
 
     public function update(Request $request, $id)
@@ -117,23 +108,23 @@ class EmployeeRestDayController extends Controller
         $employee = $query->findOrFail($id);
 
         $data = $request->validate([
-            'rest_days' => 'nullable|array',
-            'rest_days.*' => 'in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+            'rest_dates' => 'nullable|array',
+            'rest_dates.*' => 'date',
         ]);
 
-        EmployeeRestDay::where('employee_id', $employee->id)->delete();
+        EmployeeRestDayDate::where('employee_id', $employee->id)->delete();
 
-        foreach (($data['rest_days'] ?? []) as $day) {
-            EmployeeRestDay::create([
+        foreach (($data['rest_dates'] ?? []) as $date) {
+            EmployeeRestDayDate::create([
                 'employee_id' => $employee->id,
-                'day_name' => $day,
+                'rest_date' => $date,
                 'is_active' => true,
             ]);
         }
 
         return redirect()
             ->route('employee-rest-days.index')
-            ->with('success', 'Rest day schedule updated successfully.');
+            ->with('success', 'Rest day dates updated successfully.');
     }
 
     private function getAccessibleCompanyIds(Employee $employee): array

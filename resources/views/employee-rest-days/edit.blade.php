@@ -29,32 +29,27 @@
 
             <div class="card">
                 <div class="card-header">
-                    <h4 class="card-title">Select Rest Day(s)</h4>
+                    <h4 class="card-title">Select Rest Day Dates</h4>
                 </div>
                 <div class="card-body">
                     <form method="POST" action="{{ route('employee-rest-days.update', $employee->id) }}">
                         @csrf
                         @method('PUT')
 
-                        <div class="row">
-                            @foreach($days as $day)
-                                <div class="col-md-3 mb-3">
-                                    <div class="form-check">
-                                        <input
-                                            class="form-check-input"
-                                            type="checkbox"
-                                            name="rest_days[]"
-                                            value="{{ $day }}"
-                                            id="day_{{ $day }}"
-                                            {{ in_array($day, $selectedDays) ? 'checked' : '' }}
-                                        >
-                                        <label class="form-check-label" for="day_{{ $day }}">
-                                            {{ ucfirst($day) }}
-                                        </label>
-                                    </div>
-                                </div>
-                            @endforeach
+                        <div class="mb-3">
+                            <label class="form-label">Rest Day Calendar</label>
+                            <input
+                                type="text"
+                                id="rest_dates_picker"
+                                class="form-control"
+                                placeholder="Click calendar dates"
+                            >
+                            <small class="text-muted">
+                                Click multiple dates in the calendar to assign rest days.
+                            </small>
                         </div>
+
+                        <div id="rest-dates-container"></div>
 
                         <div class="mt-3">
                             <button type="submit" class="btn btn-primary">Save</button>
@@ -67,3 +62,34 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    const selectedDates = @json($selectedDates ?? []);
+    const container = document.getElementById('rest-dates-container');
+
+    function renderHiddenInputs(dates) {
+        container.innerHTML = '';
+
+        dates.forEach(function(date) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'rest_dates[]';
+            input.value = date;
+            container.appendChild(input);
+        });
+    }
+
+    flatpickr("#rest_dates_picker", {
+        mode: "multiple",
+        dateFormat: "Y-m-d",
+        defaultDate: selectedDates,
+        onReady: function(selectedDatesObj, dateStr, instance) {
+            renderHiddenInputs(instance.selectedDates.map(d => instance.formatDate(d, "Y-m-d")));
+        },
+        onChange: function(selectedDatesObj, dateStr, instance) {
+            renderHiddenInputs(instance.selectedDates.map(d => instance.formatDate(d, "Y-m-d")));
+        }
+    });
+</script>
+@endpush

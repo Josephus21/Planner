@@ -76,4 +76,8 @@ public function restDays()
 {
     return $this->hasMany(\App\Models\EmployeeRestDay::class);
 }
+public function restDayDates()
+{
+    return $this->hasMany(\App\Models\EmployeeRestDayDate::class);
+}
 }

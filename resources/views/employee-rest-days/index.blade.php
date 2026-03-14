@@ -10,23 +10,13 @@
 
     <div class="page-heading">
         <h3>Rest Day Schedule</h3>
-        <p class="text-subtitle text-muted">Manage employee weekly rest days.</p>
+        <p class="text-subtitle text-muted">Manage employee rest day dates.</p>
     </div>
 
     <div class="page-content">
         <section class="section">
             @if(session('success'))
                 <div class="alert alert-success">{{ session('success') }}</div>
-            @endif
-
-            @if($errors->any())
-                <div class="alert alert-danger">
-                    <ul class="mb-0">
-                        @foreach($errors->all() as $e)
-                            <li>{{ $e }}</li>
-                        @endforeach
-                    </ul>
-                </div>
             @endif
 
             <div class="card">
@@ -40,7 +30,7 @@
                                 <tr>
                                     <th>Employee</th>
                                     <th>Company</th>
-                                    <th>Rest Days</th>
+                                    <th>Rest Day Dates</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
@@ -50,12 +40,14 @@
                                         <td>{{ $employee->fullname }}</td>
                                         <td>{{ $employee->company->name ?? '-' }}</td>
                                         <td>
-                                            {{
-                                                $employee->restDays
-                                                    ->pluck('day_name')
-                                                    ->map(fn($day) => ucfirst($day))
-                                                    ->implode(', ') ?: 'No rest day assigned'
-                                            }}
+                                            @if($employee->restDayDates->count())
+                                                {{ $employee->restDayDates->take(5)->map(fn($r) => \Carbon\Carbon::parse($r->rest_date)->format('M d, Y'))->implode(', ') }}
+                                                @if($employee->restDayDates->count() > 5)
+                                                    <br><small class="text-muted">and {{ $employee->restDayDates->count() - 5 }} more</small>
+                                                @endif
+                                            @else
+                                                No rest day assigned
+                                            @endif
                                         </td>
                                         <td>
                                             <a href="{{ route('employee-rest-days.edit', $employee->id) }}" class="btn btn-sm btn-primary">
