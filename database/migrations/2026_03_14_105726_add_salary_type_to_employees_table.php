@@ -9,16 +9,20 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('employees', function (Blueprint $table) {
-            $table->enum('salary_type', ['monthly', 'daily'])
-                ->default('monthly')
-                ->after('status');
+            if (!Schema::hasColumn('employees', 'salary_type')) {
+                $table->enum('salary_type', ['monthly', 'daily'])
+                    ->default('monthly')
+                    ->after('status');
+            }
         });
     }
 
     public function down(): void
     {
         Schema::table('employees', function (Blueprint $table) {
-            $table->dropColumn('salary_type');
+            if (Schema::hasColumn('employees', 'salary_type')) {
+                $table->dropColumn('salary_type');
+            }
         });
     }
 };
