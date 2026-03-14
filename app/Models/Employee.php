@@ -72,5 +72,8 @@ public function isDaily(): bool
     return $this->salary_type === 'daily';
 }
 
-
+public function restDays()
+{
+    return $this->hasMany(EmployeeRestDay::class);
+}
 }

@@ -52,7 +52,9 @@
 
    $hrOpen = request()->is('attendance-reports*')
     || request()->is('payrolls*')
-    || request()->is('leave-requests*');
+    || request()->is('leave-requests*')
+    || request()->is('holidays*')
+    || request()->is('employee-rest-days*');
 
     $settingsOpen = request()->is('departments*')
         || request()->is('roles*');
@@ -257,11 +259,12 @@
 
 
                     {{-- HR DRAWER --}}
-                    @if(
+                   @if(
     canMenuAny($user, $isDeveloper, ['attendance_reports.view','attendance_reports.create','attendance_reports.edit','attendance_reports.delete']) ||
     canMenuAny($user, $isDeveloper, ['payrolls.view','payrolls.create','payrolls.edit','payrolls.delete']) ||
     canMenuAny($user, $isDeveloper, ['leave_requests.view','leave_requests.create','leave_requests.edit','leave_requests.delete']) ||
-    canMenuAny($user, $isDeveloper, ['holidays.view','holidays.create','holidays.edit','holidays.delete'])
+    canMenuAny($user, $isDeveloper, ['holidays.view','holidays.create','holidays.edit','holidays.delete']) ||
+    canMenuAny($user, $isDeveloper, ['employee_rest_days.view','employee_rest_days.create','employee_rest_days.edit','employee_rest_days.delete'])
 )
                         <li class="sidebar-item has-sub {{ $hrOpen ? 'active open' : '' }}">
                             <a href="#" class="sidebar-link">
@@ -290,6 +293,12 @@
 @if(canMenuAny($user, $isDeveloper, ['holidays.view','holidays.create','holidays.edit','holidays.delete']))
     <li class="submenu-item {{ request()->is('holidays*') ? 'active' : '' }}">
         <a href="{{ route('holidays.index') }}">Holidays</a>
+    </li>
+@endif
+
+@if(canMenuAny($user, $isDeveloper, ['employee_rest_days.view','employee_rest_days.create','employee_rest_days.edit','employee_rest_days.delete']))
+    <li class="submenu-item {{ request()->is('employee-rest-days*') ? 'active' : '' }}">
+        <a href="{{ route('employee-rest-days.index') }}">Rest Day Schedule</a>
     </li>
 @endif
                             </ul>

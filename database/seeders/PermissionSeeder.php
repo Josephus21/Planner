@@ -124,6 +124,16 @@ class PermissionSeeder extends Seeder
 
             /*
             |--------------------------------------------------------------------------
+            | Employee Rest Days
+            |--------------------------------------------------------------------------
+            */
+            ['key' => 'employee_rest_days.view',   'label' => 'View Employee Rest Days'],
+            ['key' => 'employee_rest_days.create', 'label' => 'Create Employee Rest Days'],
+            ['key' => 'employee_rest_days.edit',   'label' => 'Edit Employee Rest Days'],
+            ['key' => 'employee_rest_days.delete', 'label' => 'Delete Employee Rest Days'],
+
+            /*
+            |--------------------------------------------------------------------------
             | Schedules
             |--------------------------------------------------------------------------
             */

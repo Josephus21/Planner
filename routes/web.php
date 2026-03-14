@@ -10,7 +10,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\RoleController;
-
+use App\Http\Controllers\EmployeeRestDayController;
 
 use App\Http\Controllers\PresenceController;
 use App\Http\Controllers\PayrollController;
@@ -421,7 +421,11 @@ Route::get('/manager-dashboard/events', [ManagerDashboardController::class, 'eve
         ->name('holidays.destroy')
         ->middleware('permission:holidays.delete');
 
-
+Route::middleware(['auth'])->group(function () {
+    Route::get('/employee-rest-days', [EmployeeRestDayController::class, 'index'])->name('employee-rest-days.index');
+    Route::get('/employee-rest-days/{employee}/edit', [EmployeeRestDayController::class, 'edit'])->name('employee-rest-days.edit');
+    Route::put('/employee-rest-days/{employee}', [EmployeeRestDayController::class, 'update'])->name('employee-rest-days.update');
+});
     /*
     |---------------------------------------------------------------------------
     | LEAVE REQUESTS
