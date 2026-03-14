@@ -46,6 +46,7 @@ use App\Http\Controllers\HrManagerDashboardController;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Response;
 
+use App\Http\Controllers\HolidayController;
 
 Route::get('/', function () {
     return view('auth.login');
@@ -139,6 +140,8 @@ Route::get('/manager-dashboard/events', [ManagerDashboardController::class, 'eve
     ->name('manager.dashboard.events')
     ->middleware(['auth']);
 
+
+    
     /*
     |---------------------------------------------------------------------------
     | ATTENDANCE (Punch)
@@ -388,6 +391,36 @@ Route::get('/manager-dashboard/events', [ManagerDashboardController::class, 'eve
     Route::delete('/payrolls/{payroll}', [PayrollController::class, 'destroy'])
         ->name('payrolls.destroy')
         ->middleware('permission:payrolls.delete');
+
+    /*
+    |---------------------------------------------------------------------------
+    | HOLIDAYS
+    |---------------------------------------------------------------------------
+    */
+    Route::get('/holidays', [HolidayController::class, 'index'])
+        ->name('holidays.index')
+        ->middleware('permission:holidays.view');
+
+    Route::get('/holidays/create', [HolidayController::class, 'create'])
+        ->name('holidays.create')
+        ->middleware('permission:holidays.create');
+
+    Route::post('/holidays', [HolidayController::class, 'store'])
+        ->name('holidays.store')
+        ->middleware('permission:holidays.create');
+
+    Route::get('/holidays/{holiday}/edit', [HolidayController::class, 'edit'])
+        ->name('holidays.edit')
+        ->middleware('permission:holidays.edit');
+
+    Route::put('/holidays/{holiday}', [HolidayController::class, 'update'])
+        ->name('holidays.update')
+        ->middleware('permission:holidays.edit');
+
+    Route::delete('/holidays/{holiday}', [HolidayController::class, 'destroy'])
+        ->name('holidays.destroy')
+        ->middleware('permission:holidays.delete');
+
 
     /*
     |---------------------------------------------------------------------------

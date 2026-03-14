@@ -50,9 +50,9 @@
         || request()->is('project-categories*')
         || request()->is('presences*');
 
-    $hrOpen = request()->is('attendance-reports*')
-        || request()->is('payrolls*')
-        || request()->is('leave-requests*');
+   $hrOpen = request()->is('attendance-reports*')
+    || request()->is('payrolls*')
+    || request()->is('leave-requests*');
 
     $settingsOpen = request()->is('departments*')
         || request()->is('roles*');
@@ -258,10 +258,11 @@
 
                     {{-- HR DRAWER --}}
                     @if(
-                        canMenuAny($user, $isDeveloper, ['attendance_reports.view','attendance_reports.create','attendance_reports.edit','attendance_reports.delete']) ||
-                        canMenuAny($user, $isDeveloper, ['payrolls.view','payrolls.create','payrolls.edit','payrolls.delete']) ||
-                        canMenuAny($user, $isDeveloper, ['leave_requests.view','leave_requests.create','leave_requests.edit','leave_requests.delete'])
-                    )
+    canMenuAny($user, $isDeveloper, ['attendance_reports.view','attendance_reports.create','attendance_reports.edit','attendance_reports.delete']) ||
+    canMenuAny($user, $isDeveloper, ['payrolls.view','payrolls.create','payrolls.edit','payrolls.delete']) ||
+    canMenuAny($user, $isDeveloper, ['leave_requests.view','leave_requests.create','leave_requests.edit','leave_requests.delete']) ||
+    canMenuAny($user, $isDeveloper, ['holidays.view','holidays.create','holidays.edit','holidays.delete'])
+)
                         <li class="sidebar-item has-sub {{ $hrOpen ? 'active open' : '' }}">
                             <a href="#" class="sidebar-link">
                                 <i class="bi bi-people-fill"></i>
@@ -286,7 +287,11 @@
                                         <a href="{{ url('/leave-requests') }}">Leave Request</a>
                                     </li>
                                 @endif
-
+@if(canMenuAny($user, $isDeveloper, ['holidays.view','holidays.create','holidays.edit','holidays.delete']))
+    <li class="submenu-item {{ request()->is('holidays*') ? 'active' : '' }}">
+        <a href="{{ route('holidays.index') }}">Holidays</a>
+    </li>
+@endif
                             </ul>
                         </li>
                     @endif

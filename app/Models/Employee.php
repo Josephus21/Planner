@@ -21,6 +21,7 @@ class Employee extends Model
         'birth_date',
         'hire_date',
         'status',
+          'salary_type',
         'role_id'
     ];
 
@@ -61,7 +62,15 @@ public function companies()
 {
     return $this->belongsToMany(Company::class, 'employee_companies')->withTimestamps();
 }
+public function isMonthly(): bool
+{
+    return $this->salary_type === 'monthly';
+}
 
+public function isDaily(): bool
+{
+    return $this->salary_type === 'daily';
+}
 
 
 }

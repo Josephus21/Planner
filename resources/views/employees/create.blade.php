@@ -96,63 +96,61 @@
               @enderror
             </div>
 
-           <div class="mb-3">
-    <label class="form-label">Primary Company</label>
+            <div class="mb-3">
+              <label class="form-label">Primary Company</label>
 
-    <select name="company_id"
-            class="form-control @error('company_id') is-invalid @enderror"
-            required>
-        <option value="">Select Primary Company</option>
+              <select name="company_id"
+                      class="form-control @error('company_id') is-invalid @enderror"
+                      required>
+                  <option value="">Select Primary Company</option>
 
-        @foreach($companies as $company)
-            <option value="{{ $company->id }}"
-                {{ (string) old('company_id', '') === (string) $company->id ? 'selected' : '' }}>
-                {{ $company->name }}
-            </option>
-        @endforeach
-    </select>
+                  @foreach($companies as $company)
+                      <option value="{{ $company->id }}"
+                          {{ (string) old('company_id', '') === (string) $company->id ? 'selected' : '' }}>
+                          {{ $company->name }}
+                      </option>
+                  @endforeach
+              </select>
 
-    @error('company_id')
-        <div class="invalid-feedback">{{ $message }}</div>
-    @enderror
-</div>
-
-<div class="mb-3">
-    <label class="form-label">Assigned Companies</label>
-
-    @php
-        $selectedCompanies = old('company_ids', []);
-    @endphp
-
-    <div class="row">
-        @foreach($companies as $company)
-            <div class="col-md-4 mb-2">
-                <div class="form-check">
-                    <input type="checkbox"
-                           class="form-check-input"
-                           name="company_ids[]"
-                           value="{{ $company->id }}"
-                           id="company_{{ $company->id }}"
-                           {{ in_array($company->id, $selectedCompanies) ? 'checked' : '' }}>
-
-                    <label class="form-check-label" for="company_{{ $company->id }}">
-                        {{ $company->name }}
-                    </label>
-                </div>
+              @error('company_id')
+                  <div class="invalid-feedback">{{ $message }}</div>
+              @enderror
             </div>
-        @endforeach
-    </div>
 
-    @error('company_ids')
-        <div class="text-danger small">{{ $message }}</div>
-    @enderror
+            <div class="mb-3">
+              <label class="form-label">Assigned Companies</label>
 
-    @error('company_ids.*')
-        <div class="text-danger small">{{ $message }}</div>
-    @enderror
-</div>
+              @php
+                  $selectedCompanies = old('company_ids', []);
+              @endphp
 
+              <div class="row">
+                  @foreach($companies as $company)
+                      <div class="col-md-4 mb-2">
+                          <div class="form-check">
+                              <input type="checkbox"
+                                     class="form-check-input"
+                                     name="company_ids[]"
+                                     value="{{ $company->id }}"
+                                     id="company_{{ $company->id }}"
+                                     {{ in_array($company->id, $selectedCompanies) ? 'checked' : '' }}>
 
+                              <label class="form-check-label" for="company_{{ $company->id }}">
+                                  {{ $company->name }}
+                              </label>
+                          </div>
+                      </div>
+                  @endforeach
+              </div>
+
+              @error('company_ids')
+                  <div class="text-danger small">{{ $message }}</div>
+              @enderror
+
+              @error('company_ids.*')
+                  <div class="text-danger small">{{ $message }}</div>
+              @enderror
+            </div>
 
             <div class="mb-3">
               <label class="form-label">Hire date</label>
@@ -216,12 +214,31 @@
             </div>
 
             <div class="mb-3">
-              <label class="form-label">Salary</label>
+              <label class="form-label">Salary Type</label>
+              <select name="salary_type"
+                      id="salary_type"
+                      class="form-control @error('salary_type') is-invalid @enderror"
+                      required>
+                <option value="">Select Salary Type</option>
+                <option value="monthly" {{ old('salary_type') === 'monthly' ? 'selected' : '' }}>Monthly</option>
+                <option value="daily" {{ old('salary_type') === 'daily' ? 'selected' : '' }}>Daily</option>
+              </select>
+              @error('salary_type')
+                <div class="invalid-feedback">{{ $message }}</div>
+              @enderror
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label" id="salary-label">Salary</label>
               <input type="number"
+                     step="0.01"
+                     min="0"
                      class="form-control @error('salary') is-invalid @enderror"
                      name="salary"
+                     id="salary"
                      value="{{ old('salary') }}"
                      required>
+              <small class="text-muted" id="salary-help">Enter employee salary amount.</small>
               @error('salary')
                 <div class="invalid-feedback">{{ $message }}</div>
               @enderror
@@ -272,67 +289,70 @@
                 </div>
               </div>
             </div>
-<hr>
-<h5 class="mb-2">Deductions</h5>
-<p class="text-muted mb-3">Select deductions for this employee and set the amount per payroll period.</p>
 
-<div class="table-responsive">
-  <table class="table table-bordered">
-    <thead>
-      <tr>
-        <th style="width: 40%">Deduction Type</th>
-        <th style="width: 30%">Amount (per payroll)</th>
-        <th style="width: 30%">Active</th>
-      </tr>
-    </thead>
-    <tbody>
-      @forelse($deductionTypes as $dt)
-        @php
-          $oldEnabled = old("deductions.{$dt->id}.enabled");
-          $oldAmount  = old("deductions.{$dt->id}.amount");
-        @endphp
-        <tr>
-          <td>
-            <div class="form-check">
-              <input class="form-check-input"
-                     type="checkbox"
-                     id="ded_{{ $dt->id }}"
-                     name="deductions[{{ $dt->id }}][enabled]"
-                     value="1"
-                     {{ $oldEnabled ? 'checked' : '' }}>
-              <label class="form-check-label" for="ded_{{ $dt->id }}">
-                {{ $dt->name }}
-              </label>
+            <hr>
+
+            <h5 class="mb-2">Deductions</h5>
+            <p class="text-muted mb-3">Select deductions for this employee and set the amount per payroll period.</p>
+
+            <div class="table-responsive">
+              <table class="table table-bordered">
+                <thead>
+                  <tr>
+                    <th style="width: 40%">Deduction Type</th>
+                    <th style="width: 30%">Amount (per payroll)</th>
+                    <th style="width: 30%">Active</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @forelse($deductionTypes as $dt)
+                    @php
+                      $oldEnabled = old("deductions.{$dt->id}.enabled");
+                      $oldAmount  = old("deductions.{$dt->id}.amount");
+                    @endphp
+                    <tr>
+                      <td>
+                        <div class="form-check">
+                          <input class="form-check-input"
+                                 type="checkbox"
+                                 id="ded_{{ $dt->id }}"
+                                 name="deductions[{{ $dt->id }}][enabled]"
+                                 value="1"
+                                 {{ $oldEnabled ? 'checked' : '' }}>
+                          <label class="form-check-label" for="ded_{{ $dt->id }}">
+                            {{ $dt->name }}
+                          </label>
+                        </div>
+                      </td>
+
+                      <td>
+                        <input type="number"
+                               step="0.01"
+                               min="0"
+                               class="form-control"
+                               name="deductions[{{ $dt->id }}][amount]"
+                               value="{{ $oldAmount ?? '' }}"
+                               placeholder="0.00">
+                        <small class="text-muted">Example: 500.00</small>
+                      </td>
+
+                      <td class="text-center">
+                        <input type="hidden" name="deductions[{{ $dt->id }}][is_active]" value="0">
+                        <input type="checkbox"
+                               name="deductions[{{ $dt->id }}][is_active]"
+                               value="1"
+                               {{ old("deductions.{$dt->id}.is_active", 1) ? 'checked' : '' }}>
+                      </td>
+                    </tr>
+                  @empty
+                    <tr>
+                      <td colspan="3" class="text-center text-muted">No deduction types found. Add types first.</td>
+                    </tr>
+                  @endforelse
+                </tbody>
+              </table>
             </div>
-          </td>
 
-          <td>
-            <input type="number"
-                   step="0.01"
-                   min="0"
-                   class="form-control"
-                   name="deductions[{{ $dt->id }}][amount]"
-                   value="{{ $oldAmount ?? '' }}"
-                   placeholder="0.00">
-            <small class="text-muted">Example: 500.00</small>
-          </td>
-
-          <td class="text-center">
-            <input type="hidden" name="deductions[{{ $dt->id }}][is_active]" value="0">
-            <input type="checkbox"
-                   name="deductions[{{ $dt->id }}][is_active]"
-                   value="1"
-                   {{ old("deductions.{$dt->id}.is_active", 1) ? 'checked' : '' }}>
-          </td>
-        </tr>
-      @empty
-        <tr>
-          <td colspan="3" class="text-center text-muted">No deduction types found. Add types first.</td>
-        </tr>
-      @endforelse
-    </tbody>
-  </table>
-</div>
             <div class="mt-4">
               <button type="submit" class="btn btn-primary">Create Employee</button>
               <a href="{{ route('employees.index') }}" class="btn btn-secondary">Back to list</a>
@@ -352,8 +372,12 @@ document.addEventListener('DOMContentLoaded', function () {
     const employeeFullname = document.querySelector('input[name="fullname"]');
     const userName = document.querySelector('input[name="user_name"]');
 
+    const salaryType = document.getElementById('salary_type');
+    const salaryLabel = document.getElementById('salary-label');
+    const salaryHelp = document.getElementById('salary-help');
+    const salaryInput = document.getElementById('salary');
+
     function syncDefaults() {
-        // If user fields are visible and user_name empty, copy employee fullname
         if (cb && cb.checked) {
             if (userName && !userName.value && employeeFullname && employeeFullname.value) {
                 userName.value = employeeFullname.value;
@@ -367,10 +391,30 @@ document.addEventListener('DOMContentLoaded', function () {
         syncDefaults();
     }
 
+    function updateSalaryUI() {
+        if (!salaryType || !salaryLabel || !salaryHelp || !salaryInput) return;
+
+        if (salaryType.value === 'monthly') {
+            salaryLabel.textContent = 'Monthly Salary';
+            salaryHelp.textContent = 'Enter the employee monthly salary.';
+            salaryInput.placeholder = 'e.g. 18000.00';
+        } else if (salaryType.value === 'daily') {
+            salaryLabel.textContent = 'Daily Rate';
+            salaryHelp.textContent = 'Enter the employee daily rate.';
+            salaryInput.placeholder = 'e.g. 650.00';
+        } else {
+            salaryLabel.textContent = 'Salary';
+            salaryHelp.textContent = 'Enter employee salary amount.';
+            salaryInput.placeholder = '';
+        }
+    }
+
     if (cb) cb.addEventListener('change', toggleUserFields);
     if (employeeFullname) employeeFullname.addEventListener('blur', syncDefaults);
+    if (salaryType) salaryType.addEventListener('change', updateSalaryUI);
 
     toggleUserFields();
+    updateSalaryUI();
 });
 </script>
 @endsection

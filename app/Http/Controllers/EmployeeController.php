@@ -111,8 +111,9 @@ class EmployeeController extends Controller
             'company_ids.*' => 'exists:companies,id',
             'department_id' => 'required|exists:departments,id',
             'role_id' => 'required|exists:roles,id',
-            'status' => 'required|string',
-            'salary' => 'required|numeric',
+            'status' => 'required|string|in:active,inactive',
+            'salary_type' => 'required|in:monthly,daily',
+            'salary' => 'required|numeric|min:0',
             'user_password' => 'nullable|string|min:6',
             'deductions' => 'nullable|array',
         ]);
@@ -144,6 +145,7 @@ class EmployeeController extends Controller
             'department_id' => $validatedData['department_id'],
             'role_id' => $validatedData['role_id'],
             'status' => $validatedData['status'],
+            'salary_type' => $validatedData['salary_type'],
             'salary' => $validatedData['salary'],
         ]);
 
@@ -320,8 +322,9 @@ class EmployeeController extends Controller
             'company_ids.*' => 'exists:companies,id',
             'department_id' => 'required|exists:departments,id',
             'role_id' => 'required|exists:roles,id',
-            'status' => 'required|string',
-            'salary' => 'required|numeric',
+            'status' => 'required|string|in:active,inactive',
+            'salary_type' => 'required|in:monthly,daily',
+            'salary' => 'required|numeric|min:0',
             'deductions' => 'nullable|array',
         ]);
 
@@ -352,6 +355,7 @@ class EmployeeController extends Controller
             'department_id' => $validatedData['department_id'],
             'role_id' => $validatedData['role_id'],
             'status' => $validatedData['status'],
+            'salary_type' => $validatedData['salary_type'],
             'salary' => $validatedData['salary'],
         ]);
 

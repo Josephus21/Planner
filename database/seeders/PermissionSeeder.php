@@ -72,17 +72,13 @@ class PermissionSeeder extends Seeder
 
             /*
             |--------------------------------------------------------------------------
-            | Project Categories + Quality Checklist (NEW)
+            | Project Categories + Quality Checklist
             |--------------------------------------------------------------------------
             */
             ['key' => 'project_categories.view',   'label' => 'View Project Categories'],
             ['key' => 'project_categories.create', 'label' => 'Create Project Categories'],
             ['key' => 'project_categories.edit',   'label' => 'Edit Project Categories'],
             ['key' => 'project_categories.delete', 'label' => 'Delete Project Categories'],
-
-            // OPTIONAL: if you want separate permissions later
-            // ['key' => 'quality_checklists.view',   'label' => 'View Quality Checklists'],
-            // ['key' => 'quality_checklists.manage', 'label' => 'Manage Quality Checklist Items'],
 
             /*
             |--------------------------------------------------------------------------
@@ -115,6 +111,16 @@ class PermissionSeeder extends Seeder
             ['key' => 'leave_requests.delete',  'label' => 'Delete Leave Requests'],
             ['key' => 'leave_requests.confirm', 'label' => 'Confirm Leave Requests'],
             ['key' => 'leave_requests.reject',  'label' => 'Reject Leave Requests'],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Holidays
+            |--------------------------------------------------------------------------
+            */
+            ['key' => 'holidays.view',   'label' => 'View Holidays'],
+            ['key' => 'holidays.create', 'label' => 'Create Holidays'],
+            ['key' => 'holidays.edit',   'label' => 'Edit Holidays'],
+            ['key' => 'holidays.delete', 'label' => 'Delete Holidays'],
 
             /*
             |--------------------------------------------------------------------------
@@ -155,35 +161,41 @@ class PermissionSeeder extends Seeder
 
             ['key' => 'reactions.create',    'label' => 'React to Posts'],
 
-['key' => 'vehicles.view',   'label' => 'View Vehicles'],
-['key' => 'vehicles.create', 'label' => 'Create Vehicles'],
-['key' => 'vehicles.edit',   'label' => 'Edit Vehicles'],
-['key' => 'vehicles.delete', 'label' => 'Delete Vehicles'],
+            /*
+            |--------------------------------------------------------------------------
+            | Vehicles
+            |--------------------------------------------------------------------------
+            */
+            ['key' => 'vehicles.view',   'label' => 'View Vehicles'],
+            ['key' => 'vehicles.create', 'label' => 'Create Vehicles'],
+            ['key' => 'vehicles.edit',   'label' => 'Edit Vehicles'],
+            ['key' => 'vehicles.delete', 'label' => 'Delete Vehicles'],
 
-/*
-|--------------------------------------------------------------------------
-| BOM Items (NEW)
-|--------------------------------------------------------------------------
-*/
-['key' => 'bom_items.create', 'label' => 'Add BOM Items'],
-['key' => 'bom_items.delete', 'label' => 'Delete BOM Items'],
-['key' => 'bom_items.update_status', 'label' => 'Update BOM Item Status'],
+            /*
+            |--------------------------------------------------------------------------
+            | BOM Items
+            |--------------------------------------------------------------------------
+            */
+            ['key' => 'bom_items.create', 'label' => 'Add BOM Items'],
+            ['key' => 'bom_items.delete', 'label' => 'Delete BOM Items'],
+            ['key' => 'bom_items.update_status', 'label' => 'Update BOM Item Status'],
 
+            /*
+            |--------------------------------------------------------------------------
+            | Job Orders (LFP - DPOD)
+            |--------------------------------------------------------------------------
+            */
+            ['key' => 'job_orders.view', 'label' => 'View Job Orders (LFP - DPOD)'],
+            ['key' => 'job_orders.sync', 'label' => 'Sync Job Orders from API'],
 
-/*
-|--------------------------------------------------------------------------
-| Job Orders (LFP - DPOD)  (NEW)
-|--------------------------------------------------------------------------
-*/
-['key' => 'job_orders.view', 'label' => 'View Job Orders (LFP - DPOD)'],
-['key' => 'job_orders.sync', 'label' => 'Sync Job Orders from API'],
-/*
-|--------------------------------------------------------------------------
-| Sales Orders (NEW)
-|--------------------------------------------------------------------------
-*/
-['key' => 'sales_orders.view', 'label' => 'View Sales Orders'],
-['key' => 'sales_orders.sync', 'label' => 'Sync Sales Orders from API'],
+            /*
+            |--------------------------------------------------------------------------
+            | Sales Orders
+            |--------------------------------------------------------------------------
+            */
+            ['key' => 'sales_orders.view', 'label' => 'View Sales Orders'],
+            ['key' => 'sales_orders.sync', 'label' => 'Sync Sales Orders from API'],
+
             /*
             |--------------------------------------------------------------------------
             | Users Management
@@ -192,11 +204,11 @@ class PermissionSeeder extends Seeder
             ['key' => 'users.manage', 'label' => 'Manage Users & Permissions'],
         ];
 
-      foreach ($perms as $p) {
-    Permission::updateOrCreate(
-        ['key' => $p['key']],  // use 'key' here
-        ['label' => $p['label']]
-    );
-}
+        foreach ($perms as $p) {
+            Permission::updateOrCreate(
+                ['key' => $p['key']],
+                ['label' => $p['label']]
+            );
+        }
     }
 }

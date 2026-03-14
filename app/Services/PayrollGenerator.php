@@ -22,8 +22,8 @@ class PayrollGenerator
                 ->whereBetween('work_date', [$from->toDateString(), $to->toDateString()])
                 ->get();
 
-            $daysPresent   = $logs->where('status', 'present')->count();
-            $minutesLate   = (int) $logs->sum('minutes_late');
+            $daysPresent = $logs->where('status', 'present')->count();
+            $minutesLate = (int) $logs->sum('minutes_late');
             $minutesWorked = (int) $logs->sum('minutes_worked');
             $minutesUndertime = (int) $logs->sum('minutes_undertime');
 
@@ -32,6 +32,10 @@ class PayrollGenerator
             $dailyRate = $this->dailyRate($employee, $salary);
 
             $workHoursPerDay = (float) ($employee->work_hours_per_day ?: 8);
+            if ($workHoursPerDay <= 0) {
+                $workHoursPerDay = 8;
+            }
+
             $hourlyRate = $dailyRate / $workHoursPerDay;
             $perMinuteRate = $hourlyRate / 60;
 
@@ -39,7 +43,7 @@ class PayrollGenerator
             $gross = $dailyRate * $daysPresent;
 
             // Attendance-based deductions
-            $lateDeduction = $minutesLate * $perMinuteRate;
+            $lateDeduction = $this->calculateLateDeduction($logs, $dailyRate, $hourlyRate);
             $undertimeDeduction = $minutesUndertime * $perMinuteRate;
 
             // Employee deductions
@@ -153,6 +157,35 @@ class PayrollGenerator
         }
     }
 
+    private function calculateLateDeduction($logs, float $dailyRate, float $hourlyRate): float
+    {
+        $lateDeduction = 0;
+
+        foreach ($logs as $log) {
+            $minutesLate = (float) ($log->minutes_late ?? 0);
+
+            if ($minutesLate <= 0) {
+                continue;
+            }
+
+            // 1 second to 30 minutes = 1 hour deduction
+            if ($minutesLate > 0 && $minutesLate <= 30) {
+                $lateDeduction += $hourlyRate;
+            }
+            // More than 30 minutes up to 1 hour = half-day deduction
+            elseif ($minutesLate > 30 && $minutesLate <= 60) {
+                $lateDeduction += ($dailyRate / 2);
+            }
+            // More than 1 hour = full-day deduction
+            // Optional: keep this if you want a fallback for > 60 minutes
+            else {
+                $lateDeduction += $dailyRate;
+            }
+        }
+
+        return round($lateDeduction, 2);
+    }
+
     private function dailyRate(Employee $employee, float $salary): float
     {
         if ($employee->salary_type === 'daily') {
@@ -163,6 +196,6 @@ class PayrollGenerator
             return $salary * (float) $employee->work_hours_per_day;
         }
 
-        return $salary / (int) $employee->work_days_per_month;
+        return $salary / max((int) $employee->work_days_per_month, 1);
     }
 }
