@@ -421,11 +421,17 @@ Route::get('/manager-dashboard/events', [ManagerDashboardController::class, 'eve
         ->name('holidays.destroy')
         ->middleware('permission:holidays.delete');
 
-Route::middleware(['auth'])->group(function () {
-    Route::get('/employee-rest-days', [EmployeeRestDayController::class, 'index'])->name('employee-rest-days.index');
-    Route::get('/employee-rest-days/{employee}/edit', [EmployeeRestDayController::class, 'edit'])->name('employee-rest-days.edit');
-    Route::put('/employee-rest-days/{employee}', [EmployeeRestDayController::class, 'update'])->name('employee-rest-days.update');
-});
+Route::get('/employee-rest-days', [EmployeeRestDayController::class, 'index'])
+    ->name('employee-rest-days.index')
+    ->middleware('permission:employee_rest_days.view');
+
+Route::get('/employee-rest-days/{employee}/edit', [EmployeeRestDayController::class, 'edit'])
+    ->name('employee-rest-days.edit')
+    ->middleware('permission:employee_rest_days.edit');
+
+Route::put('/employee-rest-days/{employee}', [EmployeeRestDayController::class, 'update'])
+    ->name('employee-rest-days.update')
+    ->middleware('permission:employee_rest_days.edit');
     /*
     |---------------------------------------------------------------------------
     | LEAVE REQUESTS

@@ -11,8 +11,10 @@ class EmployeeRestDayController extends Controller
     public function index()
     {
         $employees = Employee::with(['restDays' => function ($q) {
-    $q->where('is_active', 1);
-}])->orderBy('name')->get();
+            $q->where('is_active', 1);
+        }])
+        ->orderBy('name')
+        ->get();
 
         return view('employee-rest-days.index', compact('employees'));
     }
@@ -46,10 +48,8 @@ class EmployeeRestDayController extends Controller
 
         $restDays = $data['rest_days'] ?? [];
 
-        // remove old
         EmployeeRestDay::where('employee_id', $employee->id)->delete();
 
-        // insert new
         foreach ($restDays as $day) {
             EmployeeRestDay::create([
                 'employee_id' => $employee->id,
