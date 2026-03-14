@@ -11,8 +11,8 @@ class EmployeeRestDayController extends Controller
     public function index()
     {
         $employees = Employee::with(['restDays' => function ($q) {
-            $q->where('is_active', 1);
-        }])->orderBy('first_name')->get();
+    $q->where('is_active', 1);
+}])->orderBy('name')->get();
 
         return view('employee-rest-days.index', compact('employees'));
     }

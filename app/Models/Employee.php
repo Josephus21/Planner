@@ -74,6 +74,6 @@ public function isDaily(): bool
 
 public function restDays()
 {
-    return $this->hasMany(EmployeeRestDay::class);
+    return $this->hasMany(\App\Models\EmployeeRestDay::class);
 }
 }

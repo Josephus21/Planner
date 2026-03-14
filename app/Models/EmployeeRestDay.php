@@ -9,7 +9,7 @@ class EmployeeRestDay extends Model
     protected $fillable = [
         'employee_id',
         'day_name',
-        'is_active'
+        'is_active',
     ];
 
     public function employee()
