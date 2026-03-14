@@ -6,8 +6,8 @@ use App\Models\Employee;
 use App\Models\AttendanceLog;
 use App\Models\LeaveRequest;
 use App\Models\Payroll;
-use App\Models\Department;
 use App\Models\Company;
+use App\Models\Holiday;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Schema;
 
@@ -24,8 +24,7 @@ class HrManagerDashboardController extends Controller
         $pendingLeaves = collect();
         $recentAttendance = collect();
         $upcomingBirthdays = collect();
-        $departmentLabels = collect();
-        $departmentCounts = collect();
+        $upcomingHolidays = collect();
         $companyCards = collect();
 
         // Late today
@@ -143,20 +142,39 @@ class HrManagerDashboardController extends Controller
                 ->values();
         }
 
-        // Department summary
+        // Upcoming holidays
         if (
-            class_exists(Department::class) &&
-            Schema::hasTable('departments') &&
-            method_exists(new Department, 'employees')
+            class_exists(Holiday::class) &&
+            Schema::hasTable('holidays') &&
+            Schema::hasColumn('holidays', 'holiday_date')
         ) {
-            $departments = Department::withCount(['employees' => function ($q) {
-                if (Schema::hasColumn('employees', 'status')) {
-                    $q->where('status', 'active');
-                }
-            }])->get();
+            $upcomingHolidays = Holiday::query()
+                ->when(Schema::hasColumn('holidays', 'is_active'), function ($q) {
+                    $q->where('is_active', true);
+                })
+                ->get()
+                ->map(function ($holiday) use ($now) {
+                    $holidayDate = Carbon::parse($holiday->holiday_date);
 
-            $departmentLabels = $departments->pluck('name');
-            $departmentCounts = $departments->pluck('employees_count');
+                    if (!empty($holiday->is_recurring)) {
+                        $holidayDate = $holidayDate->year($now->year);
+
+                        if ($holidayDate->lt($now->copy()->startOfDay())) {
+                            $holidayDate->addYear();
+                        }
+                    }
+
+                    $holiday->display_date = $holidayDate;
+                    return $holiday;
+                })
+                ->filter(function ($holiday) use ($now) {
+                    return $holiday->display_date->gte($now->copy()->startOfDay());
+                })
+                ->sortBy(function ($holiday) {
+                    return $holiday->display_date->timestamp;
+                })
+                ->take(5)
+                ->values();
         }
 
         return view('hr.dashboard', compact(
@@ -166,8 +184,7 @@ class HrManagerDashboardController extends Controller
             'pendingLeaves',
             'recentAttendance',
             'upcomingBirthdays',
-            'departmentLabels',
-            'departmentCounts',
+            'upcomingHolidays',
             'companyCards'
         ));
     }

@@ -213,35 +213,27 @@
         </div>
 
         {{-- Department Summary --}}
-        <div class="col-lg-6">
-            <div class="card">
-                <div class="card-header">
-                    <h4>Department Summary</h4>
+        <div class="card">
+    <div class="card-header">
+        <h5 class="card-title">Upcoming Holidays</h5>
+    </div>
+    <div class="card-body">
+        @forelse($upcomingHolidays as $holiday)
+            <div class="mb-3 border-bottom pb-2">
+                <div class="fw-bold">{{ $holiday->name }}</div>
+                <div class="text-muted">
+                    {{ $holiday->display_date->format('M d, Y') }}
+                    • {{ ucfirst($holiday->type) }}
                 </div>
-                <div class="card-body table-responsive">
-                    <table class="table table-striped mb-0">
-                        <thead>
-                            <tr>
-                                <th>Department</th>
-                                <th>Employees</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse(($departmentLabels ?? collect()) as $index => $label)
-                                <tr>
-                                    <td>{{ $label }}</td>
-                                    <td>{{ $departmentCounts[$index] ?? 0 }}</td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="2" class="text-center text-muted">No department data found.</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
+                @if(!empty($holiday->company))
+                    <small class="text-secondary">{{ $holiday->company->name }}</small>
+                @endif
             </div>
-        </div>
+        @empty
+            <p class="text-muted mb-0">No upcoming holidays.</p>
+        @endforelse
+    </div>
+</div>
     </div>
 
 </section>
