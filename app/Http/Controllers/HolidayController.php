@@ -25,10 +25,6 @@ class HolidayController extends Controller
 
         $query = Holiday::with('company')->latest('holiday_date');
 
-        if (!in_array($roleTitle, ['developer', 'admin', 'administrator', 'hr'])) {
-            abort(403, 'Unauthorized.');
-        }
-
         if ($roleTitle !== 'developer') {
             $query->where(function ($q) use ($accessibleCompanyIds) {
                 $q->whereNull('company_id')
@@ -55,13 +51,12 @@ class HolidayController extends Controller
         $roleTitle = strtolower(trim($myEmployee->role->title ?? ''));
         $accessibleCompanyIds = $this->getAccessibleCompanyIds($myEmployee);
 
-        if (!in_array($roleTitle, ['developer', 'admin', 'administrator', 'hr'])) {
-            abort(403, 'Unauthorized.');
-        }
-
         $companies = $roleTitle === 'developer'
             ? Company::where('status', 'active')->orderBy('name')->get()
-            : Company::whereIn('id', $accessibleCompanyIds)->where('status', 'active')->orderBy('name')->get();
+            : Company::whereIn('id', $accessibleCompanyIds)
+                ->where('status', 'active')
+                ->orderBy('name')
+                ->get();
 
         return view('holidays.create', compact('companies'));
     }
@@ -79,10 +74,6 @@ class HolidayController extends Controller
 
         $roleTitle = strtolower(trim($myEmployee->role->title ?? ''));
         $accessibleCompanyIds = $this->getAccessibleCompanyIds($myEmployee);
-
-        if (!in_array($roleTitle, ['developer', 'admin', 'administrator', 'hr'])) {
-            abort(403, 'Unauthorized.');
-        }
 
         $data = $request->validate([
             'company_id' => 'nullable|exists:companies,id',
@@ -124,17 +115,16 @@ class HolidayController extends Controller
         $roleTitle = strtolower(trim($myEmployee->role->title ?? ''));
         $accessibleCompanyIds = $this->getAccessibleCompanyIds($myEmployee);
 
-        if (!in_array($roleTitle, ['developer', 'admin', 'administrator', 'hr'])) {
-            abort(403, 'Unauthorized.');
-        }
-
         if ($roleTitle !== 'developer' && $holiday->company_id && !in_array((int) $holiday->company_id, $accessibleCompanyIds)) {
             abort(403, 'Unauthorized.');
         }
 
         $companies = $roleTitle === 'developer'
             ? Company::where('status', 'active')->orderBy('name')->get()
-            : Company::whereIn('id', $accessibleCompanyIds)->where('status', 'active')->orderBy('name')->get();
+            : Company::whereIn('id', $accessibleCompanyIds)
+                ->where('status', 'active')
+                ->orderBy('name')
+                ->get();
 
         return view('holidays.edit', compact('holiday', 'companies'));
     }
@@ -152,10 +142,6 @@ class HolidayController extends Controller
 
         $roleTitle = strtolower(trim($myEmployee->role->title ?? ''));
         $accessibleCompanyIds = $this->getAccessibleCompanyIds($myEmployee);
-
-        if (!in_array($roleTitle, ['developer', 'admin', 'administrator', 'hr'])) {
-            abort(403, 'Unauthorized.');
-        }
 
         if ($roleTitle !== 'developer' && $holiday->company_id && !in_array((int) $holiday->company_id, $accessibleCompanyIds)) {
             abort(403, 'Unauthorized.');
@@ -200,10 +186,6 @@ class HolidayController extends Controller
 
         $roleTitle = strtolower(trim($myEmployee->role->title ?? ''));
         $accessibleCompanyIds = $this->getAccessibleCompanyIds($myEmployee);
-
-        if (!in_array($roleTitle, ['developer', 'admin', 'administrator', 'hr'])) {
-            abort(403, 'Unauthorized.');
-        }
 
         if ($roleTitle !== 'developer' && $holiday->company_id && !in_array((int) $holiday->company_id, $accessibleCompanyIds)) {
             abort(403, 'Unauthorized.');
