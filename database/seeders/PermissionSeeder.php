@@ -50,6 +50,15 @@ class PermissionSeeder extends Seeder
 
             /*
             |--------------------------------------------------------------------------
+            | Overtime Requests
+            |--------------------------------------------------------------------------
+            */
+            ['key' => 'overtime_requests.view',    'label' => 'View Overtime Requests'],
+            ['key' => 'overtime_requests.create',  'label' => 'Create Overtime Requests'],
+            ['key' => 'overtime_requests.approve', 'label' => 'Approve Overtime Requests'],
+
+            /*
+            |--------------------------------------------------------------------------
             | Tasks
             |--------------------------------------------------------------------------
             */
@@ -67,7 +76,6 @@ class PermissionSeeder extends Seeder
             ['key' => 'projects.create', 'label' => 'Create Projects'],
             ['key' => 'projects.edit',   'label' => 'Edit Projects'],
             ['key' => 'projects.delete', 'label' => 'Delete Projects'],
-
             ['key' => 'project_updates.create', 'label' => 'Update Project Progress'],
 
             /*
@@ -159,17 +167,17 @@ class PermissionSeeder extends Seeder
             */
             ['key' => 'feed.view', 'label' => 'View News Feed'],
 
-            ['key' => 'posts.create',        'label' => 'Create Posts'],
-            ['key' => 'posts.edit_own',      'label' => 'Edit Own Posts'],
-            ['key' => 'posts.delete_own',    'label' => 'Delete Own Posts'],
-            ['key' => 'posts.delete_any',    'label' => 'Delete Any Post (Moderator)'],
+            ['key' => 'posts.create',     'label' => 'Create Posts'],
+            ['key' => 'posts.edit_own',   'label' => 'Edit Own Posts'],
+            ['key' => 'posts.delete_own', 'label' => 'Delete Own Posts'],
+            ['key' => 'posts.delete_any', 'label' => 'Delete Any Post (Moderator)'],
 
             ['key' => 'comments.create',     'label' => 'Create Comments'],
             ['key' => 'comments.edit_own',   'label' => 'Edit Own Comments'],
             ['key' => 'comments.delete_own', 'label' => 'Delete Own Comments'],
             ['key' => 'comments.delete_any', 'label' => 'Delete Any Comment'],
 
-            ['key' => 'reactions.create',    'label' => 'React to Posts'],
+            ['key' => 'reactions.create', 'label' => 'React to Posts'],
 
             /*
             |--------------------------------------------------------------------------
@@ -186,8 +194,8 @@ class PermissionSeeder extends Seeder
             | BOM Items
             |--------------------------------------------------------------------------
             */
-            ['key' => 'bom_items.create', 'label' => 'Add BOM Items'],
-            ['key' => 'bom_items.delete', 'label' => 'Delete BOM Items'],
+            ['key' => 'bom_items.create',        'label' => 'Add BOM Items'],
+            ['key' => 'bom_items.delete',        'label' => 'Delete BOM Items'],
             ['key' => 'bom_items.update_status', 'label' => 'Update BOM Item Status'],
 
             /*

@@ -216,108 +216,125 @@ class PayrollGenerator
         }
     }
 
-    /**
-     * Compute holiday/rest day pay and OT.
-     *
-     * Rules:
-     * - Special holiday OR rest day:
-     *   - Daily: first 8 hrs = 130%
-     *   - Monthly: first 8 hrs = 30% premium only
-     *   - Beyond 8 hrs: 169% for both daily/monthly
-     *
-     * - Regular holiday:
-     *   - Daily: first 8 hrs = 200%
-     *   - Monthly: first 8 hrs = 100% premium only
-     *   - Beyond 8 hrs: 260% for both daily/monthly
-     */
-    private function calculateHolidayPremiums($logs, Employee $employee, float $dailyRate, float $hourlyRate): array
-    {
-        $items = [];
+   /**
+ * Compute holiday/rest day pay and OT.
+ *
+ * Rules:
+ * - Regular working day:
+ *   - First 8 hrs = already included in base pay (100%)
+ *   - Beyond 8 hrs = 125%
+ *
+ * - Special holiday OR rest day:
+ *   - Daily: first 8 hrs = 130%
+ *   - Monthly: first 8 hrs = 30% premium only
+ *   - Beyond 8 hrs: 169% for both daily/monthly
+ *
+ * - Regular holiday:
+ *   - Daily: first 8 hrs = 200%
+ *   - Monthly: first 8 hrs = 100% premium only
+ *   - Beyond 8 hrs: 260% for both daily/monthly
+ */
+private function calculateHolidayPremiums($logs, Employee $employee, float $dailyRate, float $hourlyRate): array
+{
+    $items = [];
 
-        foreach ($logs as $log) {
-            if (($log->status ?? null) !== 'present') {
-                continue;
-            }
-
-            $minutesWorked = (int) ($log->minutes_worked ?? 0);
-            if ($minutesWorked <= 0) {
-                continue;
-            }
-
-            $workedHours   = $minutesWorked / 60;
-            $regularHours  = min($workedHours, 8);
-            $overtimeHours = max($workedHours - 8, 0);
-
-            $holiday = $this->getHolidayForDate($employee, $log->work_date);
-
-            $isRegularHoliday = $holiday && strtolower((string) $holiday->type) === 'regular';
-            $isSpecialHoliday = $holiday && strtolower((string) $holiday->type) === 'special';
-            $isRestDay        = $this->isRestDay($employee, $log->work_date);
-
-            /**
-             * REGULAR HOLIDAY
-             */
-            if ($isRegularHoliday) {
-                if ($regularHours > 0) {
-                    // Daily = full 200%
-                    // Monthly = 100% premium only
-                    $amount = $employee->salary_type === 'daily'
-                        ? ($regularHours * $hourlyRate * 2.00)
-                        : ($regularHours * $hourlyRate * 1.00);
-
-                    $items[] = [
-                        'name'   => 'Regular holiday pay (' . Carbon::parse($log->work_date)->format('M d, Y') . ')',
-                        'amount' => round($amount, 2),
-                    ];
-                }
-
-                if ($overtimeHours > 0) {
-                    $items[] = [
-                        'name'   => 'Regular holiday OT (' . Carbon::parse($log->work_date)->format('M d, Y') . ')',
-                        'amount' => round($overtimeHours * $hourlyRate * 2.60, 2),
-                    ];
-                }
-
-                continue;
-            }
-
-            /**
-             * SPECIAL HOLIDAY OR REST DAY
-             */
-            if ($isSpecialHoliday || $isRestDay) {
-                if ($regularHours > 0) {
-                    // Daily = full 130%
-                    // Monthly = 30% premium only
-                    $amount = $employee->salary_type === 'daily'
-                        ? ($regularHours * $hourlyRate * 1.30)
-                        : ($regularHours * $hourlyRate * 0.30);
-
-                    $label = $isSpecialHoliday && $isRestDay
-                        ? 'Special holiday / Rest day pay'
-                        : ($isSpecialHoliday ? 'Special holiday pay' : 'Rest day pay');
-
-                    $items[] = [
-                        'name'   => $label . ' (' . Carbon::parse($log->work_date)->format('M d, Y') . ')',
-                        'amount' => round($amount, 2),
-                    ];
-                }
-
-                if ($overtimeHours > 0) {
-                    $label = $isSpecialHoliday && $isRestDay
-                        ? 'Special holiday / Rest day OT'
-                        : ($isSpecialHoliday ? 'Special holiday OT' : 'Rest day OT');
-
-                    $items[] = [
-                        'name'   => $label . ' (' . Carbon::parse($log->work_date)->format('M d, Y') . ')',
-                        'amount' => round($overtimeHours * $hourlyRate * 1.69, 2),
-                    ];
-                }
-            }
+    foreach ($logs as $log) {
+        if (($log->status ?? null) !== 'present') {
+            continue;
         }
 
-        return $items;
+        $minutesWorked = (int) ($log->minutes_worked ?? 0);
+        if ($minutesWorked <= 0) {
+            continue;
+        }
+
+        $workedHours   = $minutesWorked / 60;
+        $regularHours  = min($workedHours, 8);
+        $overtimeHours = max($workedHours - 8, 0);
+
+        $holiday = $this->getHolidayForDate($employee, $log->work_date);
+
+        $isRegularHoliday = $holiday && strtolower((string) $holiday->type) === 'regular';
+        $isSpecialHoliday = $holiday && strtolower((string) $holiday->type) === 'special';
+        $isRestDay        = $this->isRestDay($employee, $log->work_date);
+
+        /**
+         * REGULAR HOLIDAY
+         */
+        if ($isRegularHoliday) {
+            if ($regularHours > 0) {
+                // Daily = full 200%
+                // Monthly = 100% premium only
+                $amount = $employee->salary_type === 'daily'
+                    ? ($regularHours * $hourlyRate * 2.00)
+                    : ($regularHours * $hourlyRate * 1.00);
+
+                $items[] = [
+                    'name'   => 'Regular holiday pay (' . Carbon::parse($log->work_date)->format('M d, Y') . ')',
+                    'amount' => round($amount, 2),
+                ];
+            }
+
+            if ($overtimeHours > 0) {
+                $items[] = [
+                    'name'   => 'Regular holiday OT (' . Carbon::parse($log->work_date)->format('M d, Y') . ')',
+                    'amount' => round($overtimeHours * $hourlyRate * 2.60, 2),
+                ];
+            }
+
+            continue;
+        }
+
+        /**
+         * SPECIAL HOLIDAY OR REST DAY
+         */
+        if ($isSpecialHoliday || $isRestDay) {
+            if ($regularHours > 0) {
+                // Daily = full 130%
+                // Monthly = 30% premium only
+                $amount = $employee->salary_type === 'daily'
+                    ? ($regularHours * $hourlyRate * 1.30)
+                    : ($regularHours * $hourlyRate * 0.30);
+
+                $label = $isSpecialHoliday && $isRestDay
+                    ? 'Special holiday / Rest day pay'
+                    : ($isSpecialHoliday ? 'Special holiday pay' : 'Rest day pay');
+
+                $items[] = [
+                    'name'   => $label . ' (' . Carbon::parse($log->work_date)->format('M d, Y') . ')',
+                    'amount' => round($amount, 2),
+                ];
+            }
+
+            if ($overtimeHours > 0) {
+                $label = $isSpecialHoliday && $isRestDay
+                    ? 'Special holiday / Rest day OT'
+                    : ($isSpecialHoliday ? 'Special holiday OT' : 'Rest day OT');
+
+                $items[] = [
+                    'name'   => $label . ' (' . Carbon::parse($log->work_date)->format('M d, Y') . ')',
+                    'amount' => round($overtimeHours * $hourlyRate * 1.69, 2),
+                ];
+            }
+
+            continue;
+        }
+
+        /**
+         * ORDINARY WORKING DAY
+         * First 8 hours already covered by base pay.
+         * Only add OT beyond 8 hours at 125%.
+         */
+        if ($overtimeHours > 0) {
+            $items[] = [
+                'name'   => 'Regular day OT (' . Carbon::parse($log->work_date)->format('M d, Y') . ')',
+                'amount' => round($overtimeHours * $hourlyRate * 1.25, 2),
+            ];
+        }
     }
 
+    return $items;
+}
     /**
      * Existing holidays table lookup.
      * Supports:

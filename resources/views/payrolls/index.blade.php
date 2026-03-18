@@ -159,13 +159,21 @@
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
             <span>Payroll Summary</span>
 
-            <div class="d-flex gap-2">
-                @if(Route::has('payrolls.export') && $selectedPeriod)
-                    <a href="{{ route('payrolls.export', $selectedPeriod->id) }}" class="btn btn-outline-primary btn-sm">
-                        ⬇️ Export
-                    </a>
-                @endif
-            </div>
+            <div class="d-flex gap-2 flex-wrap">
+    @if(Route::has('payrolls.export') && $selectedPeriod)
+        <a href="{{ route('payrolls.export', $selectedPeriod->id) }}" class="btn btn-outline-primary btn-sm">
+            ⬇️ Export
+        </a>
+    @endif
+
+    @if($selectedPeriod && Route::has('payroll_periods.print_all'))
+        <a href="{{ route('payroll_periods.print_all', ['period' => $selectedPeriod->id, 'company_id' => $selectedCompanyId]) }}"
+           target="_blank"
+           class="btn btn-outline-dark btn-sm">
+            🖨️ Print All Payrolls
+        </a>
+    @endif
+</div>
         </div>
 
         <div class="card-body">

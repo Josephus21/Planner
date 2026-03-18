@@ -54,7 +54,8 @@
     || request()->is('payrolls*')
     || request()->is('leave-requests*')
     || request()->is('holidays*')
-    || request()->is('employee-rest-days*');
+    || request()->is('employee-rest-days*')
+    || request()->is('overtime-requests*');
 
     $settingsOpen = request()->is('departments*')
         || request()->is('roles*');
@@ -257,14 +258,13 @@
                         </li>
                     @endif
 
-
-                    {{-- HR DRAWER --}}
-                   @if(
+@if(
     canMenuAny($user, $isDeveloper, ['attendance_reports.view','attendance_reports.create','attendance_reports.edit','attendance_reports.delete']) ||
     canMenuAny($user, $isDeveloper, ['payrolls.view','payrolls.create','payrolls.edit','payrolls.delete']) ||
     canMenuAny($user, $isDeveloper, ['leave_requests.view','leave_requests.create','leave_requests.edit','leave_requests.delete']) ||
     canMenuAny($user, $isDeveloper, ['holidays.view','holidays.create','holidays.edit','holidays.delete']) ||
-    canMenuAny($user, $isDeveloper, ['employee_rest_days.view','employee_rest_days.create','employee_rest_days.edit','employee_rest_days.delete'])
+    canMenuAny($user, $isDeveloper, ['employee_rest_days.view','employee_rest_days.create','employee_rest_days.edit','employee_rest_days.delete']) ||
+    canMenuAny($user, $isDeveloper, ['overtime_requests.view','overtime_requests.create','overtime_requests.approve'])
 )
                         <li class="sidebar-item has-sub {{ $hrOpen ? 'active open' : '' }}">
                             <a href="#" class="sidebar-link">
@@ -290,6 +290,11 @@
                                         <a href="{{ url('/leave-requests') }}">Leave Request</a>
                                     </li>
                                 @endif
+                                @if(canMenuAny($user, $isDeveloper, ['overtime_requests.view','overtime_requests.create','overtime_requests.approve']))
+    <li class="submenu-item {{ request()->is('overtime-requests*') ? 'active' : '' }}">
+        <a href="{{ route('overtime-requests.index') }}">Overtime Requests</a>
+    </li>
+@endif
 @if(canMenuAny($user, $isDeveloper, ['holidays.view','holidays.create','holidays.edit','holidays.delete']))
     <li class="submenu-item {{ request()->is('holidays*') ? 'active' : '' }}">
         <a href="{{ route('holidays.index') }}">Holidays</a>

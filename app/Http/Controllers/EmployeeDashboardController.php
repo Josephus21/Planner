@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\AttendanceLog;
 use App\Models\EmployeeScheduleAssignment;
+use App\Models\EmployeeOvertimeSchedule;
+use App\Models\Holiday;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Models\Holiday;
+
 class EmployeeDashboardController extends Controller
 {
     public function index(Request $request)
@@ -21,7 +23,6 @@ class EmployeeDashboardController extends Controller
 
         $employee = Employee::with('company')->findOrFail((int) $user->employee_id);
 
-        // Optional explicit company guard
         $companyWarning = null;
         if (!$employee->company_id) {
             $companyWarning = 'Your account is not assigned to a company.';
@@ -134,133 +135,156 @@ class EmployeeDashboardController extends Controller
     }
 
     public function scheduleEvents(Request $request)
-{
-    $user = Auth::user();
-    $employeeId = $user->employee_id ?? null;
+    {
+        $user = Auth::user();
+        $employeeId = $user->employee_id ?? null;
 
-    if (!$employeeId) {
-        return response()->json([]);
-    }
+        if (!$employeeId) {
+            return response()->json([]);
+        }
 
-    $employee = Employee::find((int) $employeeId);
+        $employee = Employee::find((int) $employeeId);
 
-    if (!$employee) {
-        return response()->json([]);
-    }
+        if (!$employee) {
+            return response()->json([]);
+        }
 
-    $start = Carbon::parse($request->query('start'))->timezone('Asia/Manila')->startOfDay();
-    $end   = Carbon::parse($request->query('end'))->timezone('Asia/Manila')->endOfDay();
+        $start = Carbon::parse($request->query('start'))->timezone('Asia/Manila')->startOfDay();
+        $end   = Carbon::parse($request->query('end'))->timezone('Asia/Manila')->endOfDay();
 
-    $assignments = EmployeeScheduleAssignment::with('schedule')
-        ->where('employee_id', $employeeId)
-        ->where('effective_from', '<=', $end->toDateString())
-        ->where(function ($q) use ($start) {
-            $q->whereNull('effective_to')
-              ->orWhere('effective_to', '>=', $start->toDateString());
-        })
-        ->orderBy('effective_from')
-        ->get();
-
-    $logs = AttendanceLog::where('employee_id', $employeeId)
-        ->whereBetween('work_date', [$start->toDateString(), $end->toDateString()])
-        ->get()
-        ->keyBy('work_date');
-
-    $events = [];
-
-    for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
-        $d = $date->toDateString();
-
-        $holiday = Holiday::query()
-            ->where('is_active', true)
-            ->where(function ($q) use ($employee, $d, $date) {
-                $q->where(function ($sub) use ($employee, $d) {
-                    $sub->whereDate('holiday_date', $d)
-                        ->where(function ($companyQ) use ($employee) {
-                            $companyQ->whereNull('company_id')
-                                     ->orWhere('company_id', $employee->company_id);
-                        });
-                })->orWhere(function ($sub) use ($employee, $date) {
-                    $sub->where('is_recurring', true)
-                        ->whereMonth('holiday_date', $date->month)
-                        ->whereDay('holiday_date', $date->day)
-                        ->where(function ($companyQ) use ($employee) {
-                            $companyQ->whereNull('company_id')
-                                     ->orWhere('company_id', $employee->company_id);
-                        });
-                });
+        $assignments = EmployeeScheduleAssignment::with('schedule')
+            ->where('employee_id', $employeeId)
+            ->where('effective_from', '<=', $end->toDateString())
+            ->where(function ($q) use ($start) {
+                $q->whereNull('effective_to')
+                  ->orWhere('effective_to', '>=', $start->toDateString());
             })
-            ->first();
+            ->orderBy('effective_from')
+            ->get();
 
-        if ($holiday) {
-            $events[] = [
-                'title' => $holiday->name . ' (' . ucfirst($holiday->type) . ' Holiday)',
-                'start' => $date->copy()->startOfDay()->toIso8601String(),
-                'end'   => $date->copy()->endOfDay()->toIso8601String(),
-                'allDay' => true,
-                'backgroundColor' => $holiday->type === 'regular' ? '#dc3545' : '#fd7e14',
-                'borderColor' => $holiday->type === 'regular' ? '#dc3545' : '#fd7e14',
-            ];
+        $logs = AttendanceLog::where('employee_id', $employeeId)
+            ->whereBetween('work_date', [$start->toDateString(), $end->toDateString()])
+            ->get()
+            ->keyBy('work_date');
 
-            continue;
-        }
+        $overtimeSchedules = EmployeeOvertimeSchedule::where('employee_id', $employeeId)
+            ->where('status', 'approved')
+            ->whereBetween('ot_date', [$start->toDateString(), $end->toDateString()])
+            ->get()
+            ->groupBy(function ($row) {
+                return Carbon::parse($row->ot_date)->toDateString();
+            });
 
-        $active = $assignments->filter(function ($a) use ($d) {
-            return $a->effective_from <= $d && (is_null($a->effective_to) || $a->effective_to >= $d);
-        })->last();
+        $events = [];
 
-        if (!$active || !$active->schedule) {
-            continue;
-        }
+        for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
+            $d = $date->toDateString();
 
-        $sch = $active->schedule;
+            $holiday = Holiday::query()
+                ->where('is_active', true)
+                ->where(function ($q) use ($employee, $d, $date) {
+                    $q->where(function ($sub) use ($employee, $d) {
+                        $sub->whereDate('holiday_date', $d)
+                            ->where(function ($companyQ) use ($employee) {
+                                $companyQ->whereNull('company_id')
+                                         ->orWhere('company_id', $employee->company_id);
+                            });
+                    })->orWhere(function ($sub) use ($employee, $date) {
+                        $sub->where('is_recurring', true)
+                            ->whereMonth('holiday_date', $date->month)
+                            ->whereDay('holiday_date', $date->day)
+                            ->where(function ($companyQ) use ($employee) {
+                                $companyQ->whereNull('company_id')
+                                         ->orWhere('company_id', $employee->company_id);
+                            });
+                    });
+                })
+                ->first();
 
-        $startDt = Carbon::parse($d . ' ' . $sch->start_time, 'Asia/Manila');
-        $endDt   = Carbon::parse($d . ' ' . $sch->end_time, 'Asia/Manila');
-
-        $events[] = [
-            'title' => $sch->name . ' (Work)',
-            'start' => $startDt->toIso8601String(),
-            'end'   => $endDt->toIso8601String(),
-        ];
-
-        if ($sch->break_start && $sch->break_end) {
-            $events[] = [
-                'title' => 'Break',
-                'start' => Carbon::parse($d . ' ' . $sch->break_start, 'Asia/Manila')->toIso8601String(),
-                'end'   => Carbon::parse($d . ' ' . $sch->break_end, 'Asia/Manila')->toIso8601String(),
-            ];
-        }
-
-        if ($sch->lunch_start && $sch->lunch_end) {
-            $events[] = [
-                'title' => 'Lunch',
-                'start' => Carbon::parse($d . ' ' . $sch->lunch_start, 'Asia/Manila')->toIso8601String(),
-                'end'   => Carbon::parse($d . ' ' . $sch->lunch_end, 'Asia/Manila')->toIso8601String(),
-            ];
-        }
-
-        if (isset($logs[$d])) {
-            $log = $logs[$d];
-
-            if ($log->time_in) {
+            if ($holiday) {
                 $events[] = [
-                    'title' => 'Time In',
-                    'start' => Carbon::parse($log->time_in, 'Asia/Manila')->toIso8601String(),
+                    'title' => $holiday->name . ' (' . ucfirst($holiday->type) . ' Holiday)',
+                    'start' => $date->copy()->startOfDay()->toIso8601String(),
+                    'end'   => $date->copy()->endOfDay()->toIso8601String(),
+                    'allDay' => true,
+                    'backgroundColor' => $holiday->type === 'regular' ? '#dc3545' : '#fd7e14',
+                    'borderColor' => $holiday->type === 'regular' ? '#dc3545' : '#fd7e14',
                 ];
             }
 
-            if ($log->time_out) {
+            $active = $assignments->filter(function ($a) use ($d) {
+                return $a->effective_from <= $d && (is_null($a->effective_to) || $a->effective_to >= $d);
+            })->last();
+
+            if ($active && $active->schedule) {
+                $sch = $active->schedule;
+
+                $startDt = Carbon::parse($d . ' ' . $sch->start_time, 'Asia/Manila');
+                $endDt   = Carbon::parse($d . ' ' . $sch->end_time, 'Asia/Manila');
+
                 $events[] = [
-                    'title' => 'Time Out',
-                    'start' => Carbon::parse($log->time_out, 'Asia/Manila')->toIso8601String(),
+                    'title' => $sch->name . ' (Work)',
+                    'start' => $startDt->toIso8601String(),
+                    'end'   => $endDt->toIso8601String(),
                 ];
+
+                if ($sch->break_start && $sch->break_end) {
+                    $events[] = [
+                        'title' => 'Break',
+                        'start' => Carbon::parse($d . ' ' . $sch->break_start, 'Asia/Manila')->toIso8601String(),
+                        'end'   => Carbon::parse($d . ' ' . $sch->break_end, 'Asia/Manila')->toIso8601String(),
+                    ];
+                }
+
+                if ($sch->lunch_start && $sch->lunch_end) {
+                    $events[] = [
+                        'title' => 'Lunch',
+                        'start' => Carbon::parse($d . ' ' . $sch->lunch_start, 'Asia/Manila')->toIso8601String(),
+                        'end'   => Carbon::parse($d . ' ' . $sch->lunch_end, 'Asia/Manila')->toIso8601String(),
+                    ];
+                }
+            }
+
+            if (isset($overtimeSchedules[$d])) {
+                foreach ($overtimeSchedules[$d] as $ot) {
+                    $otStart = Carbon::parse($d . ' ' . $ot->start_time, 'Asia/Manila');
+                    $otEnd   = Carbon::parse($d . ' ' . $ot->end_time, 'Asia/Manila');
+
+                    if ($otEnd->lte($otStart)) {
+                        $otEnd->addDay();
+                    }
+
+                    $events[] = [
+                        'title' => 'Approved Overtime',
+                        'start' => $otStart->toIso8601String(),
+                        'end'   => $otEnd->toIso8601String(),
+                        'backgroundColor' => '#198754',
+                        'borderColor' => '#198754',
+                    ];
+                }
+            }
+
+            if (isset($logs[$d])) {
+                $log = $logs[$d];
+
+                if ($log->time_in) {
+                    $events[] = [
+                        'title' => 'Time In',
+                        'start' => Carbon::parse($log->time_in, 'Asia/Manila')->toIso8601String(),
+                    ];
+                }
+
+                if ($log->time_out) {
+                    $events[] = [
+                        'title' => 'Time Out',
+                        'start' => Carbon::parse($log->time_out, 'Asia/Manila')->toIso8601String(),
+                    ];
+                }
             }
         }
+
+        return response()->json($events);
     }
-
-    return response()->json($events);
-}
 
     protected function computeGross(
         string $salaryType,

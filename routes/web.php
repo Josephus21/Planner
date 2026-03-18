@@ -47,7 +47,7 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Response;
 
 use App\Http\Controllers\HolidayController;
-
+use App\Http\Controllers\OvertimeRequestController;
 Route::get('/', function () {
     return view('auth.login');
 });
@@ -101,6 +101,8 @@ Route::middleware(['auth'])->group(function () {
 
 });
 
+
+
 Route::middleware(['auth'])->group(function () {
     Route::get('/job-orders', [JobOrderController::class, 'index'])
         ->name('job-orders.index')
@@ -140,7 +142,29 @@ Route::get('/manager-dashboard/events', [ManagerDashboardController::class, 'eve
     ->name('manager.dashboard.events')
     ->middleware(['auth']);
 
+Route::get('/overtime-requests', [OvertimeRequestController::class, 'index'])
+    ->name('overtime-requests.index')
+    ->middleware('permission:overtime_requests.view');
 
+Route::get('/overtime-requests/create', [OvertimeRequestController::class, 'create'])
+    ->name('overtime-requests.create')
+    ->middleware('permission:overtime_requests.create');
+
+Route::post('/overtime-requests', [OvertimeRequestController::class, 'store'])
+    ->name('overtime-requests.store')
+    ->middleware('permission:overtime_requests.create');
+
+Route::get('/overtime-requests/{overtimeRequest}', [OvertimeRequestController::class, 'show'])
+    ->name('overtime-requests.show')
+    ->middleware('permission:overtime_requests.view');
+
+Route::post('/overtime-requests/{overtimeRequest}/approve', [OvertimeRequestController::class, 'approve'])
+    ->name('overtime-requests.approve')
+    ->middleware('permission:overtime_requests.approve');
+
+Route::post('/overtime-requests/{overtimeRequest}/reject', [OvertimeRequestController::class, 'reject'])
+    ->name('overtime-requests.reject')
+    ->middleware('permission:overtime_requests.approve');
     
     /*
     |---------------------------------------------------------------------------
@@ -371,27 +395,34 @@ Route::get('/manager-dashboard/events', [ManagerDashboardController::class, 'eve
         ->name('presences.destroy')
         ->middleware('permission:presences.delete');
 
-    /*
-    |---------------------------------------------------------------------------
-    | PAYROLL
-    |---------------------------------------------------------------------------
-    */
-    Route::get('/payrolls', [PayrollController::class, 'index'])
-        ->name('payrolls.index')
-        ->middleware('permission:payrolls.view');
+   /*
+|--------------------------------------------------------------------------
+| PAYROLL
+|--------------------------------------------------------------------------
+*/
+Route::get('/payrolls', [PayrollController::class, 'index'])
+    ->name('payrolls.index')
+    ->middleware('permission:payrolls.view');
 
-    Route::post('/payrolls/generate', [PayrollController::class, 'generate'])
-        ->name('payrolls.generate')
-        ->middleware('permission:payrolls.create');
+Route::post('/payrolls/generate', [PayrollController::class, 'generate'])
+    ->name('payrolls.generate')
+    ->middleware('permission:payrolls.create');
 
-    Route::get('/payrolls/{payroll}', [PayrollController::class, 'show'])
-        ->name('payrolls.show')
-        ->middleware('permission:payrolls.view');
+Route::get('/payrolls/{payroll}', [PayrollController::class, 'show'])
+    ->name('payrolls.show')
+    ->middleware('permission:payrolls.view');
 
-    Route::delete('/payrolls/{payroll}', [PayrollController::class, 'destroy'])
-        ->name('payrolls.destroy')
-        ->middleware('permission:payrolls.delete');
+Route::delete('/payrolls/{payroll}', [PayrollController::class, 'destroy'])
+    ->name('payrolls.destroy')
+    ->middleware('permission:payrolls.delete');
 
+Route::post('/payroll-periods/{period}/post', [PayrollController::class, 'postPeriod'])
+    ->name('payroll_periods.post')
+    ->middleware('permission:payrolls.create');
+
+Route::get('/payroll-periods/{period}/print-all', [PayrollController::class, 'printAll'])
+    ->name('payroll_periods.print_all')
+    ->middleware('permission:payrolls.view');
     /*
     |---------------------------------------------------------------------------
     | HOLIDAYS
