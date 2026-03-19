@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\LeaveRequest;
 use App\Models\Employee;
   use Carbon\Carbon;
+  use App\Models\AttendanceLog;
 class LeaveRequestController extends Controller
 {
     public function index()
@@ -82,30 +83,48 @@ public function store(Request $request)
     }
 
 
-   public function confirm(int $id)
+  public function confirm(int $id)
 {
     $leaveRequest = LeaveRequest::findOrFail($id);
     $employee = $leaveRequest->employee;
 
-    $days = Carbon::parse($leaveRequest->start_date)
-        ->diffInDays(Carbon::parse($leaveRequest->end_date)) + 1;
+    $start = Carbon::parse($leaveRequest->start_date);
+    $end   = Carbon::parse($leaveRequest->end_date);
+
+    $days = $start->diffInDays($end) + 1;
+
+    if ($leaveRequest->leave_type === 'Vacation') {
+        if ($employee->vacation_leave_balance < $days) {
+            return back()->withErrors([
+                'leave' => 'Not enough Vacation Leave credits.'
+            ]);
+        }
+
+        $employee->decrement('vacation_leave_balance', $days);
+    }
 
     if ($leaveRequest->leave_type === 'Sick Leave') {
         if ($employee->sick_leave_balance < $days) {
-            return redirect()->route('leave-requests.index')
-                ->withErrors(['leave_type' => 'Not enough Sick Leave credits.']);
+            return back()->withErrors([
+                'leave' => 'Not enough Sick Leave credits.'
+            ]);
         }
 
         $employee->decrement('sick_leave_balance', $days);
     }
 
-    if ($leaveRequest->leave_type === 'Vacation') {
-        if ($employee->vacation_leave_balance < $days) {
-            return redirect()->route('leave-requests.index')
-                ->withErrors(['leave_type' => 'Not enough Vacation Leave credits.']);
-        }
-
-        $employee->decrement('vacation_leave_balance', $days);
+    for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
+        AttendanceLog::updateOrCreate(
+            [
+                'employee_id' => $employee->id,
+                'work_date'   => $date->toDateString(),
+            ],
+            [
+                'status'     => 'leave',
+                'leave_type' => $leaveRequest->leave_type,
+                'is_paid'    => $leaveRequest->leave_type === 'Vacation',
+            ]
+        );
     }
 
     $leaveRequest->update([

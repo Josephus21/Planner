@@ -23,10 +23,17 @@ class PayrollGenerator
                 ->whereBetween('work_date', [$from->toDateString(), $to->toDateString()])
                 ->get();
 
-            $daysPresent       = $logs->where('status', 'present')->count();
-            $minutesLate       = (int) $logs->sum('minutes_late');
-            $minutesWorked     = (int) $logs->sum('minutes_worked');
-            $minutesUndertime  = (int) $logs->sum('minutes_undertime');
+            /**
+             * Only COMPLETE present logs should count in payroll attendance figures.
+             */
+            $completePresentLogs = $logs->filter(function ($log) {
+                return $this->isCompletePresentLog($log);
+            });
+
+            $daysPresent      = $completePresentLogs->count();
+            $minutesLate      = (int) $completePresentLogs->sum('minutes_late');
+            $minutesWorked    = (int) $completePresentLogs->sum('minutes_worked');
+            $minutesUndertime = (int) $completePresentLogs->sum('minutes_undertime');
 
             $salary = (float) ($employee->salary ?? 0);
 
@@ -42,11 +49,11 @@ class PayrollGenerator
 
             /**
              * BASE PAY
-             * Only count ordinary present days here.
+             * Only count ordinary COMPLETE present days here.
              * Holiday / rest day earnings are added separately to avoid double counting.
              */
             $normalPresentDays = $logs->filter(function ($log) use ($employee) {
-                if (($log->status ?? null) !== 'present') {
+                if (!$this->isCompletePresentLog($log)) {
                     return false;
                 }
 
@@ -59,7 +66,21 @@ class PayrollGenerator
                 return !$isRegularHoliday && !$isSpecialHoliday && !$isRestDay;
             })->count();
 
+            /**
+             * ONLY VACATION LEAVE IS PAID
+             * This assumes approved vacation leave logs are saved as:
+             * status = 'leave'
+             * leave_type = 'Vacation'
+             * is_paid = true
+             */
+            $paidVacationLeaveDays = $logs->filter(function ($log) {
+                return ($log->status ?? null) === 'leave'
+                    && strtolower((string) ($log->leave_type ?? '')) === 'vacation'
+                    && (bool) ($log->is_paid ?? false) === true;
+            })->count();
+
             $basePay = round($dailyRate * $normalPresentDays, 2);
+            $paidVacationLeavePay = round($dailyRate * $paidVacationLeaveDays, 2);
 
             /**
              * HOLIDAY / REST DAY EARNINGS
@@ -76,12 +97,13 @@ class PayrollGenerator
             /**
              * GROSS
              */
-            $gross = round($basePay + $holidayPremiumTotal, 2);
+            $gross = round($basePay + $paidVacationLeavePay + $holidayPremiumTotal, 2);
 
             /**
              * ATTENDANCE-BASED DEDUCTIONS
+             * Only COMPLETE present logs should affect late/undertime.
              */
-            $lateDeduction      = $this->calculateLateDeduction($logs, $dailyRate, $hourlyRate);
+            $lateDeduction      = $this->calculateLateDeduction($completePresentLogs, $dailyRate, $hourlyRate);
             $undertimeDeduction = round($minutesUndertime * $perMinuteRate, 2);
 
             /**
@@ -175,6 +197,15 @@ class PayrollGenerator
                 ]);
             }
 
+            if ($paidVacationLeavePay > 0) {
+                PayrollItem::create([
+                    'payroll_id' => $payroll->id,
+                    'type'       => 'earning',
+                    'name'       => 'Paid Vacation Leave',
+                    'amount'     => $paidVacationLeavePay,
+                ]);
+            }
+
             foreach ($earningBreakdown as $item) {
                 PayrollItem::create([
                     'payroll_id' => $payroll->id,
@@ -216,125 +247,137 @@ class PayrollGenerator
         }
     }
 
-   /**
- * Compute holiday/rest day pay and OT.
- *
- * Rules:
- * - Regular working day:
- *   - First 8 hrs = already included in base pay (100%)
- *   - Beyond 8 hrs = 125%
- *
- * - Special holiday OR rest day:
- *   - Daily: first 8 hrs = 130%
- *   - Monthly: first 8 hrs = 30% premium only
- *   - Beyond 8 hrs: 169% for both daily/monthly
- *
- * - Regular holiday:
- *   - Daily: first 8 hrs = 200%
- *   - Monthly: first 8 hrs = 100% premium only
- *   - Beyond 8 hrs: 260% for both daily/monthly
- */
-private function calculateHolidayPremiums($logs, Employee $employee, float $dailyRate, float $hourlyRate): array
-{
-    $items = [];
-
-    foreach ($logs as $log) {
-        if (($log->status ?? null) !== 'present') {
-            continue;
-        }
-
-        $minutesWorked = (int) ($log->minutes_worked ?? 0);
-        if ($minutesWorked <= 0) {
-            continue;
-        }
-
-        $workedHours   = $minutesWorked / 60;
-        $regularHours  = min($workedHours, 8);
-        $overtimeHours = max($workedHours - 8, 0);
-
-        $holiday = $this->getHolidayForDate($employee, $log->work_date);
-
-        $isRegularHoliday = $holiday && strtolower((string) $holiday->type) === 'regular';
-        $isSpecialHoliday = $holiday && strtolower((string) $holiday->type) === 'special';
-        $isRestDay        = $this->isRestDay($employee, $log->work_date);
-
-        /**
-         * REGULAR HOLIDAY
-         */
-        if ($isRegularHoliday) {
-            if ($regularHours > 0) {
-                // Daily = full 200%
-                // Monthly = 100% premium only
-                $amount = $employee->salary_type === 'daily'
-                    ? ($regularHours * $hourlyRate * 2.00)
-                    : ($regularHours * $hourlyRate * 1.00);
-
-                $items[] = [
-                    'name'   => 'Regular holiday pay (' . Carbon::parse($log->work_date)->format('M d, Y') . ')',
-                    'amount' => round($amount, 2),
-                ];
-            }
-
-            if ($overtimeHours > 0) {
-                $items[] = [
-                    'name'   => 'Regular holiday OT (' . Carbon::parse($log->work_date)->format('M d, Y') . ')',
-                    'amount' => round($overtimeHours * $hourlyRate * 2.60, 2),
-                ];
-            }
-
-            continue;
-        }
-
-        /**
-         * SPECIAL HOLIDAY OR REST DAY
-         */
-        if ($isSpecialHoliday || $isRestDay) {
-            if ($regularHours > 0) {
-                // Daily = full 130%
-                // Monthly = 30% premium only
-                $amount = $employee->salary_type === 'daily'
-                    ? ($regularHours * $hourlyRate * 1.30)
-                    : ($regularHours * $hourlyRate * 0.30);
-
-                $label = $isSpecialHoliday && $isRestDay
-                    ? 'Special holiday / Rest day pay'
-                    : ($isSpecialHoliday ? 'Special holiday pay' : 'Rest day pay');
-
-                $items[] = [
-                    'name'   => $label . ' (' . Carbon::parse($log->work_date)->format('M d, Y') . ')',
-                    'amount' => round($amount, 2),
-                ];
-            }
-
-            if ($overtimeHours > 0) {
-                $label = $isSpecialHoliday && $isRestDay
-                    ? 'Special holiday / Rest day OT'
-                    : ($isSpecialHoliday ? 'Special holiday OT' : 'Rest day OT');
-
-                $items[] = [
-                    'name'   => $label . ' (' . Carbon::parse($log->work_date)->format('M d, Y') . ')',
-                    'amount' => round($overtimeHours * $hourlyRate * 1.69, 2),
-                ];
-            }
-
-            continue;
-        }
-
-        /**
-         * ORDINARY WORKING DAY
-         * First 8 hours already covered by base pay.
-         * Only add OT beyond 8 hours at 125%.
-         */
-        if ($overtimeHours > 0) {
-            $items[] = [
-                'name'   => 'Regular day OT (' . Carbon::parse($log->work_date)->format('M d, Y') . ')',
-                'amount' => round($overtimeHours * $hourlyRate * 1.25, 2),
-            ];
-        }
+    /**
+     * A present log is considered complete only if:
+     * - status = present
+     * - time_in exists
+     * - time_out exists
+     * - minutes_worked > 0
+     */
+    private function isCompletePresentLog($log): bool
+    {
+        return ($log->status ?? null) === 'present'
+            && !empty($log->time_in)
+            && !empty($log->time_out)
+            && (int) ($log->minutes_worked ?? 0) > 0;
     }
 
-    return $items;
-}
+    /**
+     * Compute holiday/rest day pay and OT.
+     *
+     * Rules:
+     * - Regular working day:
+     *   - First 8 hrs = already included in base pay (100%)
+     *   - Beyond 8 hrs = 125%
+     *
+     * - Special holiday OR rest day:
+     *   - Daily: first 8 hrs = 130%
+     *   - Monthly: first 8 hrs = 30% premium only
+     *   - Beyond 8 hrs: 169% for both daily/monthly
+     *
+     * - Regular holiday:
+     *   - Daily: first 8 hrs = 200%
+     *   - Monthly: first 8 hrs = 100% premium only
+     *   - Beyond 8 hrs: 260% for both daily/monthly
+     */
+    private function calculateHolidayPremiums($logs, Employee $employee, float $dailyRate, float $hourlyRate): array
+    {
+        $items = [];
+
+        foreach ($logs as $log) {
+            if (!$this->isCompletePresentLog($log)) {
+                continue;
+            }
+
+            $minutesWorked = (int) ($log->minutes_worked ?? 0);
+            if ($minutesWorked <= 0) {
+                continue;
+            }
+
+            $workedHours   = $minutesWorked / 60;
+            $regularHours  = min($workedHours, 8);
+            $overtimeHours = max($workedHours - 8, 0);
+
+            $holiday = $this->getHolidayForDate($employee, $log->work_date);
+
+            $isRegularHoliday = $holiday && strtolower((string) $holiday->type) === 'regular';
+            $isSpecialHoliday = $holiday && strtolower((string) $holiday->type) === 'special';
+            $isRestDay        = $this->isRestDay($employee, $log->work_date);
+
+            /**
+             * REGULAR HOLIDAY
+             */
+            if ($isRegularHoliday) {
+                if ($regularHours > 0) {
+                    $amount = $employee->salary_type === 'daily'
+                        ? ($regularHours * $hourlyRate * 2.00)
+                        : ($regularHours * $hourlyRate * 1.00);
+
+                    $items[] = [
+                        'name'   => 'Regular holiday pay (' . Carbon::parse($log->work_date)->format('M d, Y') . ')',
+                        'amount' => round($amount, 2),
+                    ];
+                }
+
+                if ($overtimeHours > 0) {
+                    $items[] = [
+                        'name'   => 'Regular holiday OT (' . Carbon::parse($log->work_date)->format('M d, Y') . ')',
+                        'amount' => round($overtimeHours * $hourlyRate * 2.60, 2),
+                    ];
+                }
+
+                continue;
+            }
+
+            /**
+             * SPECIAL HOLIDAY OR REST DAY
+             */
+            if ($isSpecialHoliday || $isRestDay) {
+                if ($regularHours > 0) {
+                    $amount = $employee->salary_type === 'daily'
+                        ? ($regularHours * $hourlyRate * 1.30)
+                        : ($regularHours * $hourlyRate * 0.30);
+
+                    $label = $isSpecialHoliday && $isRestDay
+                        ? 'Special holiday / Rest day pay'
+                        : ($isSpecialHoliday ? 'Special holiday pay' : 'Rest day pay');
+
+                    $items[] = [
+                        'name'   => $label . ' (' . Carbon::parse($log->work_date)->format('M d, Y') . ')',
+                        'amount' => round($amount, 2),
+                    ];
+                }
+
+                if ($overtimeHours > 0) {
+                    $label = $isSpecialHoliday && $isRestDay
+                        ? 'Special holiday / Rest day OT'
+                        : ($isSpecialHoliday ? 'Special holiday OT' : 'Rest day OT');
+
+                    $items[] = [
+                        'name'   => $label . ' (' . Carbon::parse($log->work_date)->format('M d, Y') . ')',
+                        'amount' => round($overtimeHours * $hourlyRate * 1.69, 2),
+                    ];
+                }
+
+                continue;
+            }
+
+            /**
+             * ORDINARY WORKING DAY
+             * First 8 hours already covered by base pay.
+             * Only add OT beyond 8 hours at 125%.
+             */
+            if ($overtimeHours > 0) {
+                $items[] = [
+                    'name'   => 'Regular day OT (' . Carbon::parse($log->work_date)->format('M d, Y') . ')',
+                    'amount' => round($overtimeHours * $hourlyRate * 1.25, 2),
+                ];
+            }
+        }
+
+        return $items;
+    }
+
     /**
      * Existing holidays table lookup.
      * Supports:
@@ -354,27 +397,27 @@ private function calculateHolidayPremiums($logs, Employee $employee, float $dail
     }
 
     /**
-     * TEMPORARY SAFE DEFAULT
-     *
-     * Replace this with your real schedule/day-off logic.
-     * For now this returns false so holiday rules already work,
-     * while rest day premium will not yet apply until you wire your schedule tables.
+     * Uses employee rest day relationship.
      */
-   private function isRestDay(Employee $employee, $workDate): bool
-{
-    $dayName = strtolower(\Carbon\Carbon::parse($workDate)->format('l'));
+    private function isRestDay(Employee $employee, $workDate): bool
+    {
+        $dayName = strtolower(Carbon::parse($workDate)->format('l'));
 
-    return $employee->restDays()
-        ->where('is_active', 1)
-        ->where('day_name', $dayName)
-        ->exists();
-}
+        return $employee->restDays()
+            ->where('is_active', 1)
+            ->where('day_name', $dayName)
+            ->exists();
+    }
 
     private function calculateLateDeduction($logs, float $dailyRate, float $hourlyRate): float
     {
         $lateDeduction = 0;
 
         foreach ($logs as $log) {
+            if (!$this->isCompletePresentLog($log)) {
+                continue;
+            }
+
             $minutesLate = (float) ($log->minutes_late ?? 0);
 
             if ($minutesLate <= 0) {
