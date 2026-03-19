@@ -289,14 +289,16 @@
             <hr>
 
             <h5 class="mb-2">Deductions</h5>
-            <p class="text-muted mb-3">Select deductions for this employee and set the amount per payroll period.</p>
+            <p class="text-muted mb-3">
+              Select deductions for this employee. SSS is automatically computed from gross pay during payroll generation.
+            </p>
 
             <div class="table-responsive">
-              <table class="table table-bordered">
+              <table class="table table-bordered align-middle">
                 <thead>
                   <tr>
-                    <th style="width: 30%">Deduction Type</th>
-                    <th style="width: 50%">Setup</th>
+                    <th style="width: 25%">Deduction Type</th>
+                    <th style="width: 55%">Setup</th>
                     <th style="width: 20%">Active</th>
                   </tr>
                 </thead>
@@ -304,6 +306,10 @@
                   @foreach($deductionTypes as $type)
                     @php
                         $checked = old("deductions.{$type->id}.selected") ? true : false;
+                        $code = strtoupper($type->code ?? '');
+                        $isAutoSSS = $code === 'SSS';
+                        $isLoanType = in_array($code, ['LOAN', 'INST']);
+                        $isPeriodType = in_array($code, ['CA', 'INS', 'OTH']);
                     @endphp
 
                     <tr>
@@ -321,20 +327,40 @@
                               {{ $type->name }}
                           </label>
                         </div>
+
+                        @if($isAutoSSS)
+                          <small class="text-primary d-block mt-1">
+                            Auto-computed from payroll gross.
+                          </small>
+                        @endif
                       </td>
 
                       <td>
-                        <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            class="form-control mb-2"
-                            name="deductions[{{ $type->id }}][amount]"
-                            value="{{ old("deductions.{$type->id}.amount", 0) }}"
-                            placeholder="Amount per payroll"
-                        >
+                        @if($isAutoSSS)
+                          <input type="hidden"
+                                 name="deductions[{{ $type->id }}][amount]"
+                                 value="{{ old("deductions.{$type->id}.amount", 0) }}">
 
-                        @if(in_array($type->code, ['LOAN', 'INST']))
+                          <div class="form-control bg-light mb-2" readonly>
+                            Automatic
+                          </div>
+
+                          <small class="text-muted">
+                            SSS amount is based on the employee gross pay bracket during payroll generation.
+                          </small>
+                        @else
+                          <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              class="form-control mb-2"
+                              name="deductions[{{ $type->id }}][amount]"
+                              value="{{ old("deductions.{$type->id}.amount", 0) }}"
+                              placeholder="Amount per payroll"
+                          >
+                        @endif
+
+                        @if($isLoanType)
                           <input
                               type="number"
                               step="0.01"
@@ -355,7 +381,7 @@
                           >
                         @endif
 
-                        @if(in_array($type->code, ['CA', 'INS', 'OTH']))
+                        @if($isPeriodType)
                           <select
                               name="deductions[{{ $type->id }}][payroll_period_id]"
                               class="form-control"

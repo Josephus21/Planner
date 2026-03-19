@@ -209,18 +209,26 @@ class PayrollGenerator
                             'is_active'             => ($termsAfter > 0 && $balanceAfter > 0) ? 1 : 0,
                         ];
                     } else {
-                        $value = $dt->method === 'percent'
-                            ? (float) ($ed->rate ?? $ed->amount ?? 0)
-                            : (float) ($ed->amount ?? 0);
-
-                        if ($value <= 0) {
-                            continue;
-                        }
-
-                        if ($dt->method === 'percent') {
-                            $deductionAmount = ($value / 100) * $gross;
+                        /**
+                         * SPECIAL HANDLING FOR SSS
+                         * Use gross pay bracket lookup instead of fixed amount / percent.
+                         */
+                        if ($code === 'SSS') {
+                            $deductionAmount = $this->getSssDeductionByGross($gross);
                         } else {
-                            $deductionAmount = $value;
+                            $value = $dt->method === 'percent'
+                                ? (float) ($ed->rate ?? $ed->amount ?? 0)
+                                : (float) ($ed->amount ?? 0);
+
+                            if ($value <= 0) {
+                                continue;
+                            }
+
+                            if ($dt->method === 'percent') {
+                                $deductionAmount = ($value / 100) * $gross;
+                            } else {
+                                $deductionAmount = $value;
+                            }
                         }
                     }
 
@@ -247,7 +255,9 @@ class PayrollGenerator
                         'terms_after'           => $termsAfter,
                         'balance_before'        => $balanceBefore,
                         'balance_after'         => $balanceAfter,
-                        'remarks'               => 'Applied during payroll generation',
+                        'remarks'               => $code === 'SSS'
+                            ? 'Applied during payroll generation (SSS based on gross pay bracket)'
+                            : 'Applied during payroll generation',
                     ];
                 }
 
@@ -560,5 +570,85 @@ class PayrollGenerator
         }
 
         return $salary / max((int) ($employee->work_days_per_month ?: 1), 1);
+    }
+
+    /**
+     * SSS employee deduction based on gross pay bracket.
+     * This uses the employee total share:
+     * ee_sss + mpf_ee = sss_mpf_ee_tot
+     */
+    private function getSssDeductionByGross(float $gross): float
+    {
+        $gross = round($gross, 2);
+
+        $table = [
+            ['from' => 0.00,    'to' => 5249.99,  'ee_total' => 250.00],
+            ['from' => 5250.00, 'to' => 5749.99,  'ee_total' => 275.00],
+            ['from' => 5750.00, 'to' => 6249.99,  'ee_total' => 300.00],
+            ['from' => 6250.00, 'to' => 6749.99,  'ee_total' => 325.00],
+            ['from' => 6750.00, 'to' => 7249.99,  'ee_total' => 350.00],
+            ['from' => 7250.00, 'to' => 7749.99,  'ee_total' => 375.00],
+            ['from' => 7750.00, 'to' => 8249.99,  'ee_total' => 400.00],
+            ['from' => 8250.00, 'to' => 8749.99,  'ee_total' => 425.00],
+            ['from' => 8750.00, 'to' => 9249.99,  'ee_total' => 450.00],
+            ['from' => 9250.00, 'to' => 9749.99,  'ee_total' => 475.00],
+            ['from' => 9750.00, 'to' => 10249.99, 'ee_total' => 500.00],
+            ['from' => 10250.00,'to' => 10749.99, 'ee_total' => 525.00],
+            ['from' => 10750.00,'to' => 11249.99, 'ee_total' => 550.00],
+            ['from' => 11250.00,'to' => 11749.99, 'ee_total' => 575.00],
+            ['from' => 11750.00,'to' => 12249.99, 'ee_total' => 600.00],
+            ['from' => 12250.00,'to' => 12749.99, 'ee_total' => 625.00],
+            ['from' => 12750.00,'to' => 13249.99, 'ee_total' => 650.00],
+            ['from' => 13250.00,'to' => 13749.99, 'ee_total' => 675.00],
+            ['from' => 13750.00,'to' => 14249.99, 'ee_total' => 700.00],
+            ['from' => 14250.00,'to' => 14749.99, 'ee_total' => 725.00],
+            ['from' => 14750.00,'to' => 15249.99, 'ee_total' => 750.00],
+            ['from' => 15250.00,'to' => 15749.99, 'ee_total' => 775.00],
+            ['from' => 15750.00,'to' => 16249.99, 'ee_total' => 800.00],
+            ['from' => 16250.00,'to' => 16749.99, 'ee_total' => 825.00],
+            ['from' => 16750.00,'to' => 17249.99, 'ee_total' => 850.00],
+            ['from' => 17250.00,'to' => 17749.99, 'ee_total' => 875.00],
+            ['from' => 17750.00,'to' => 18249.99, 'ee_total' => 900.00],
+            ['from' => 18250.00,'to' => 18749.99, 'ee_total' => 925.00],
+            ['from' => 18750.00,'to' => 19249.99, 'ee_total' => 950.00],
+            ['from' => 19250.00,'to' => 19749.99, 'ee_total' => 975.00],
+            ['from' => 19750.00,'to' => 20249.99, 'ee_total' => 1000.00],
+            ['from' => 20250.00,'to' => 20749.99, 'ee_total' => 1025.00],
+            ['from' => 20750.00,'to' => 21249.99, 'ee_total' => 1050.00],
+            ['from' => 21250.00,'to' => 21749.99, 'ee_total' => 1075.00],
+            ['from' => 21750.00,'to' => 22249.99, 'ee_total' => 1100.00],
+            ['from' => 22250.00,'to' => 22749.99, 'ee_total' => 1125.00],
+            ['from' => 22750.00,'to' => 23249.99, 'ee_total' => 1150.00],
+            ['from' => 23250.00,'to' => 23749.99, 'ee_total' => 1175.00],
+            ['from' => 23750.00,'to' => 24249.99, 'ee_total' => 1200.00],
+            ['from' => 24250.00,'to' => 24749.99, 'ee_total' => 1225.00],
+            ['from' => 24750.00,'to' => 25249.99, 'ee_total' => 1250.00],
+            ['from' => 25250.00,'to' => 25749.99, 'ee_total' => 1275.00],
+            ['from' => 25750.00,'to' => 26249.99, 'ee_total' => 1300.00],
+            ['from' => 26250.00,'to' => 26749.99, 'ee_total' => 1325.00],
+            ['from' => 26750.00,'to' => 27249.99, 'ee_total' => 1350.00],
+            ['from' => 27250.00,'to' => 27749.99, 'ee_total' => 1375.00],
+            ['from' => 27750.00,'to' => 28249.99, 'ee_total' => 1400.00],
+            ['from' => 28250.00,'to' => 28749.99, 'ee_total' => 1425.00],
+            ['from' => 28750.00,'to' => 29249.99, 'ee_total' => 1450.00],
+            ['from' => 29250.00,'to' => 29749.99, 'ee_total' => 1475.00],
+            ['from' => 29750.00,'to' => 30249.99, 'ee_total' => 1500.00],
+            ['from' => 30250.00,'to' => 30749.99, 'ee_total' => 1525.00],
+            ['from' => 30750.00,'to' => 31249.99, 'ee_total' => 1550.00],
+            ['from' => 31250.00,'to' => 31749.99, 'ee_total' => 1575.00],
+            ['from' => 31750.00,'to' => 32249.99, 'ee_total' => 1600.00],
+            ['from' => 32250.00,'to' => 32749.99, 'ee_total' => 1625.00],
+            ['from' => 32750.00,'to' => 33249.99, 'ee_total' => 1650.00],
+            ['from' => 33250.00,'to' => 33749.99, 'ee_total' => 1675.00],
+            ['from' => 33750.00,'to' => 999999.99, 'ee_total' => 1700.00],
+        ];
+
+        foreach ($table as $row) {
+            if ($gross >= $row['from'] && $gross <= $row['to']) {
+                return (float) $row['ee_total'];
+            }
+        }
+
+        return 0.00;
     }
 }
