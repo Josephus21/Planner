@@ -17,6 +17,7 @@ class PayrollGenerator
         $to   = Carbon::parse($period->date_to)->endOfDay();
 
         $employees = Employee::where('status', 'active')->get();
+        $payrollHalf = $this->getPayrollHalf($period);
 
         foreach ($employees as $employee) {
             $logs = $employee->attendanceLogs()
@@ -36,7 +37,6 @@ class PayrollGenerator
             $minutesUndertime = (int) $completePresentLogs->sum('minutes_undertime');
 
             $salary = (float) ($employee->salary ?? 0);
-
             $dailyRate = $this->dailyRate($employee, $salary);
 
             $workHoursPerDay = (float) ($employee->work_hours_per_day ?: 8);
@@ -68,10 +68,6 @@ class PayrollGenerator
 
             /**
              * ONLY VACATION LEAVE IS PAID
-             * This assumes approved vacation leave logs are saved as:
-             * status = 'leave'
-             * leave_type = 'Vacation'
-             * is_paid = true
              */
             $paidVacationLeaveDays = $logs->filter(function ($log) {
                 return ($log->status ?? null) === 'leave'
@@ -116,6 +112,7 @@ class PayrollGenerator
 
             $employeeDeductionTotal = 0;
             $deductionBreakdown = [];
+            $termBasedToUpdate = [];
 
             foreach ($employeeDeductions as $ed) {
                 $dt = $ed->type;
@@ -124,31 +121,89 @@ class PayrollGenerator
                     continue;
                 }
 
-                $value = (float) ($ed->amount ?? 0);
+                $deductionAmount = 0;
+                $shouldDeduct = false;
 
-                if ($value <= 0) {
+                $mode = $ed->deduction_mode ?? 'scheduled';
+                $code = strtoupper((string) ($dt->code ?? ''));
+
+                /**
+                 * RECURRING DEDUCTIONS
+                 * - PHIC + PAGIBIG = first payroll
+                 * - SSS = second payroll
+                 * - other recurring = every payroll
+                 */
+                if ($mode === 'recurring') {
+                    if (in_array($code, ['PHIC', 'PAGIBIG'])) {
+                        $shouldDeduct = $payrollHalf === 'first';
+                    } elseif ($code === 'SSS') {
+                        $shouldDeduct = $payrollHalf === 'second';
+                    } else {
+                        $shouldDeduct = true;
+                    }
+                }
+
+                /**
+                 * SCHEDULED DEDUCTIONS
+                 * only on a specific payroll period
+                 */
+                if ($mode === 'scheduled') {
+                    $shouldDeduct = !is_null($ed->payroll_period_id)
+                        && (int) $ed->payroll_period_id === (int) $period->id;
+                }
+
+                /**
+                 * TERM-BASED DEDUCTIONS
+                 * Loan / Installment
+                 */
+                if ($mode === 'term_based') {
+                    $remainingTerms = (int) ($ed->remaining_terms ?? 0);
+                    $remainingBalance = (float) ($ed->remaining_balance ?? 0);
+
+                    $shouldDeduct = $remainingTerms > 0 && $remainingBalance > 0;
+                }
+
+                if (!$shouldDeduct) {
                     continue;
                 }
 
-                $deductionAmount = 0;
+                if ($mode === 'term_based') {
+                    $deductionAmount = (float) ($ed->amount ?? 0);
+                    $remainingBalance = (float) ($ed->remaining_balance ?? 0);
 
-                if ($dt->method === 'percent') {
-                    $deductionAmount = ($value / 100) * $gross;
+                    if ($deductionAmount <= 0) {
+                        continue;
+                    }
+
+                    if ($deductionAmount > $remainingBalance) {
+                        $deductionAmount = $remainingBalance;
+                    }
+
+                    $termBasedToUpdate[] = [
+                        'id'     => $ed->id,
+                        'amount' => round($deductionAmount, 2),
+                    ];
                 } else {
-                    $deductionAmount = $value;
-                }
+                    $value = $dt->method === 'percent'
+                        ? (float) ($ed->rate ?? $ed->amount ?? 0)
+                        : (float) ($ed->amount ?? 0);
 
-                // Split monthly deductions for semi-monthly payroll
-                if ($dt->frequency === 'monthly') {
-                    $daysInPeriod = Carbon::parse($period->date_from)
-                        ->diffInDays(Carbon::parse($period->date_to)) + 1;
+                    if ($value <= 0) {
+                        continue;
+                    }
 
-                    if ($daysInPeriod <= 16) {
-                        $deductionAmount = $deductionAmount / 2;
+                    if ($dt->method === 'percent') {
+                        $deductionAmount = ($value / 100) * $gross;
+                    } else {
+                        $deductionAmount = $value;
                     }
                 }
 
                 $deductionAmount = round($deductionAmount, 2);
+
+                if ($deductionAmount <= 0) {
+                    continue;
+                }
 
                 $employeeDeductionTotal += $deductionAmount;
 
@@ -244,6 +299,30 @@ class PayrollGenerator
                     'amount'     => $item['amount'],
                 ]);
             }
+
+            /**
+             * UPDATE TERM-BASED DEDUCTIONS
+             * WARNING:
+             * If you recompute the same payroll period many times,
+             * this will reduce loan/installment repeatedly.
+             * Best long-term fix is a deduction ledger table.
+             */
+            foreach ($termBasedToUpdate as $termRow) {
+                $deduction = $employeeDeductions->firstWhere('id', $termRow['id']);
+
+                if (!$deduction) {
+                    continue;
+                }
+
+                $newRemainingBalance = round(((float) $deduction->remaining_balance) - $termRow['amount'], 2);
+                $newRemainingTerms = max(((int) $deduction->remaining_terms) - 1, 0);
+
+                $deduction->update([
+                    'remaining_balance' => max($newRemainingBalance, 0),
+                    'remaining_terms'   => $newRemainingTerms,
+                    'is_active'         => ($newRemainingTerms > 0 && $newRemainingBalance > 0) ? 1 : 0,
+                ]);
+            }
         }
     }
 
@@ -263,22 +342,20 @@ class PayrollGenerator
     }
 
     /**
+     * Detect whether current payroll period is first or second payroll of the month.
+     * Typical semi-monthly setup:
+     * - 1 to 15 = first
+     * - 16 to end = second
+     */
+    private function getPayrollHalf(PayrollPeriod $period): string
+    {
+        $dayFrom = Carbon::parse($period->date_from)->day;
+
+        return $dayFrom <= 15 ? 'first' : 'second';
+    }
+
+    /**
      * Compute holiday/rest day pay and OT.
-     *
-     * Rules:
-     * - Regular working day:
-     *   - First 8 hrs = already included in base pay (100%)
-     *   - Beyond 8 hrs = 125%
-     *
-     * - Special holiday OR rest day:
-     *   - Daily: first 8 hrs = 130%
-     *   - Monthly: first 8 hrs = 30% premium only
-     *   - Beyond 8 hrs: 169% for both daily/monthly
-     *
-     * - Regular holiday:
-     *   - Daily: first 8 hrs = 200%
-     *   - Monthly: first 8 hrs = 100% premium only
-     *   - Beyond 8 hrs: 260% for both daily/monthly
      */
     private function calculateHolidayPremiums($logs, Employee $employee, float $dailyRate, float $hourlyRate): array
     {
@@ -304,9 +381,6 @@ class PayrollGenerator
             $isSpecialHoliday = $holiday && strtolower((string) $holiday->type) === 'special';
             $isRestDay        = $this->isRestDay($employee, $log->work_date);
 
-            /**
-             * REGULAR HOLIDAY
-             */
             if ($isRegularHoliday) {
                 if ($regularHours > 0) {
                     $amount = $employee->salary_type === 'daily'
@@ -329,9 +403,6 @@ class PayrollGenerator
                 continue;
             }
 
-            /**
-             * SPECIAL HOLIDAY OR REST DAY
-             */
             if ($isSpecialHoliday || $isRestDay) {
                 if ($regularHours > 0) {
                     $amount = $employee->salary_type === 'daily'
@@ -362,11 +433,6 @@ class PayrollGenerator
                 continue;
             }
 
-            /**
-             * ORDINARY WORKING DAY
-             * First 8 hours already covered by base pay.
-             * Only add OT beyond 8 hours at 125%.
-             */
             if ($overtimeHours > 0) {
                 $items[] = [
                     'name'   => 'Regular day OT (' . Carbon::parse($log->work_date)->format('M d, Y') . ')',
@@ -424,16 +490,11 @@ class PayrollGenerator
                 continue;
             }
 
-            // 1 second to 30 minutes = 1 hour deduction
             if ($minutesLate > 0 && $minutesLate <= 30) {
                 $lateDeduction += $hourlyRate;
-            }
-            // More than 30 minutes up to 1 hour = half-day deduction
-            elseif ($minutesLate > 30 && $minutesLate <= 60) {
+            } elseif ($minutesLate > 30 && $minutesLate <= 60) {
                 $lateDeduction += ($dailyRate / 2);
-            }
-            // More than 1 hour = full-day deduction
-            else {
+            } else {
                 $lateDeduction += $dailyRate;
             }
         }

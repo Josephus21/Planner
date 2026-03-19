@@ -36,4 +36,8 @@ class EmployeeDeduction extends Model
     {
         return $this->belongsTo(DeductionType::class, 'deduction_type_id');
     }
+    public function ledgers()
+{
+    return $this->hasMany(EmployeeDeductionLedger::class);
+}
 }
