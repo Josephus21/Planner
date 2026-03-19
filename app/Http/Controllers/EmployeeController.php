@@ -120,6 +120,7 @@ class EmployeeController extends Controller
 
             'deductions' => 'nullable|array',
             'deductions.*.enabled' => 'nullable',
+            'deductions.*.selected' => 'nullable',
             'deductions.*.amount' => 'nullable|numeric|min:0',
             'deductions.*.total_amount' => 'nullable|numeric|min:0',
             'deductions.*.installment_terms' => 'nullable|integer|min:1',
@@ -341,6 +342,7 @@ class EmployeeController extends Controller
 
             'deductions' => 'nullable|array',
             'deductions.*.enabled' => 'nullable',
+            'deductions.*.selected' => 'nullable',
             'deductions.*.amount' => 'nullable|numeric|min:0',
             'deductions.*.total_amount' => 'nullable|numeric|min:0',
             'deductions.*.installment_terms' => 'nullable|integer|min:1',
@@ -500,6 +502,7 @@ class EmployeeController extends Controller
         foreach ($deductionTypes as $type) {
             $row = $deductions[$type->id] ?? [];
             $enabled = !empty($row['enabled']) || !empty($row['selected']);
+            $code = strtoupper((string) ($type->code ?? ''));
 
             $existing = $employee->deductions()
                 ->where('deduction_type_id', $type->id)
@@ -512,8 +515,10 @@ class EmployeeController extends Controller
                 continue;
             }
 
+            $amount = isset($row['amount']) ? (float) $row['amount'] : 0;
+
             $payload = [
-                'amount' => isset($row['amount']) ? (float) $row['amount'] : 0,
+                'amount' => $amount,
                 'rate' => null,
                 'is_active' => !empty($row['is_active']) ? 1 : 0,
                 'total_amount' => null,
@@ -528,11 +533,16 @@ class EmployeeController extends Controller
              * RECURRING
              * SSS / PHIC / PAGIBIG
              */
-            if (in_array($type->code, ['SSS', 'PHIC', 'PAGIBIG'])) {
+            if (in_array($code, ['SSS', 'PHIC', 'PAGIBIG'])) {
                 $payload['deduction_mode'] = 'recurring';
 
-                if ($type->method === 'percent') {
-                    $payload['rate'] = isset($row['amount']) ? (float) $row['amount'] : 0;
+                if ($code === 'SSS') {
+                    $payload['amount'] = 0;
+                    $payload['rate'] = null;
+                } else {
+                    if ($type->method === 'percent') {
+                        $payload['rate'] = $amount;
+                    }
                 }
             }
 
@@ -540,7 +550,7 @@ class EmployeeController extends Controller
              * TERM-BASED
              * LOAN / INSTALLMENT
              */
-            if (in_array($type->code, ['LOAN', 'INST'])) {
+            if (in_array($code, ['LOAN', 'INST'])) {
                 $totalAmount = isset($row['total_amount']) ? (float) $row['total_amount'] : 0;
                 $installmentTerms = isset($row['installment_terms']) ? (int) $row['installment_terms'] : 0;
                 $remainingTerms = isset($row['remaining_terms']) && $row['remaining_terms'] !== ''
@@ -562,7 +572,7 @@ class EmployeeController extends Controller
              * SCHEDULED
              * CA / INS / OTH
              */
-            if (in_array($type->code, ['CA', 'INS', 'OTH'])) {
+            if (in_array($code, ['CA', 'INS', 'OTH'])) {
                 $payload['deduction_mode'] = 'scheduled';
                 $payload['payroll_period_id'] = !empty($row['payroll_period_id'])
                     ? (int) $row['payroll_period_id']
