@@ -79,22 +79,14 @@ class PayrollController extends Controller
             $viewScope = 'self';
         }
 
-        // List all payroll periods
         $periods = PayrollPeriod::orderByDesc('date_from')->get();
 
-        // Selected period
         if ($request->filled('period_id')) {
             $selectedPeriod = PayrollPeriod::findOrFail($request->period_id);
         } else {
             $selectedPeriod = PayrollPeriod::orderByDesc('date_from')->first();
         }
 
-        /**
-         * Optional company filter
-         * - Developer: can filter any company
-         * - HR/Admin/Manager: can filter assigned companies only
-         * - Self: no company filter
-         */
         $selectedCompanyId = $request->filled('company_id')
             ? (int) $request->company_id
             : null;
@@ -390,8 +382,7 @@ class PayrollController extends Controller
         $payrolls = $query
             ->select('payrolls.*')
             ->orderBy('e.company_id')
-            ->orderBy('e.lastname')
-            ->orderBy('e.firstname')
+            ->orderBy('e.fullname')
             ->get();
 
         if ($payrolls->isEmpty()) {
