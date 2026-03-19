@@ -98,12 +98,10 @@
 
             <div class="mb-3">
               <label class="form-label">Primary Company</label>
-
               <select name="company_id"
                       class="form-control @error('company_id') is-invalid @enderror"
                       required>
                   <option value="">Select Primary Company</option>
-
                   @foreach($companies as $company)
                       <option value="{{ $company->id }}"
                           {{ (string) old('company_id', '') === (string) $company->id ? 'selected' : '' }}>
@@ -111,7 +109,6 @@
                       </option>
                   @endforeach
               </select>
-
               @error('company_id')
                   <div class="invalid-feedback">{{ $message }}</div>
               @enderror
@@ -244,7 +241,6 @@
               @enderror
             </div>
 
-            {{-- ===================== USER ACCOUNT (OPTIONAL) ===================== --}}
             <hr>
 
             <div class="mt-3">
@@ -299,56 +295,96 @@
               <table class="table table-bordered">
                 <thead>
                   <tr>
-                    <th style="width: 40%">Deduction Type</th>
-                    <th style="width: 30%">Amount (per payroll)</th>
-                    <th style="width: 30%">Active</th>
+                    <th style="width: 30%">Deduction Type</th>
+                    <th style="width: 50%">Setup</th>
+                    <th style="width: 20%">Active</th>
                   </tr>
                 </thead>
                 <tbody>
-                  @forelse($deductionTypes as $dt)
+                  @foreach($deductionTypes as $type)
                     @php
-                      $oldEnabled = old("deductions.{$dt->id}.enabled");
-                      $oldAmount  = old("deductions.{$dt->id}.amount");
+                        $checked = old("deductions.{$type->id}.selected") ? true : false;
                     @endphp
+
                     <tr>
                       <td>
                         <div class="form-check">
-                          <input class="form-check-input"
-                                 type="checkbox"
-                                 id="ded_{{ $dt->id }}"
-                                 name="deductions[{{ $dt->id }}][enabled]"
-                                 value="1"
-                                 {{ $oldEnabled ? 'checked' : '' }}>
-                          <label class="form-check-label" for="ded_{{ $dt->id }}">
-                            {{ $dt->name }}
+                          <input
+                              class="form-check-input deduction-toggle"
+                              type="checkbox"
+                              name="deductions[{{ $type->id }}][selected]"
+                              value="1"
+                              id="deduction_{{ $type->id }}"
+                              {{ $checked ? 'checked' : '' }}
+                          >
+                          <label class="form-check-label" for="deduction_{{ $type->id }}">
+                              {{ $type->name }}
                           </label>
                         </div>
                       </td>
 
                       <td>
-                        <input type="number"
-                               step="0.01"
-                               min="0"
-                               class="form-control"
-                               name="deductions[{{ $dt->id }}][amount]"
-                               value="{{ $oldAmount ?? '' }}"
-                               placeholder="0.00">
-                        <small class="text-muted">Example: 500.00</small>
+                        <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            class="form-control mb-2"
+                            name="deductions[{{ $type->id }}][amount]"
+                            value="{{ old("deductions.{$type->id}.amount", 0) }}"
+                            placeholder="Amount per payroll"
+                        >
+
+                        @if(in_array($type->code, ['LOAN', 'INST']))
+                          <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              class="form-control mb-2"
+                              name="deductions[{{ $type->id }}][total_amount]"
+                              value="{{ old("deductions.{$type->id}.total_amount", 0) }}"
+                              placeholder="Total amount"
+                          >
+
+                          <input
+                              type="number"
+                              min="1"
+                              class="form-control mb-2"
+                              name="deductions[{{ $type->id }}][installment_terms]"
+                              value="{{ old("deductions.{$type->id}.installment_terms", 1) }}"
+                              placeholder="How many payrolls?"
+                          >
+                        @endif
+
+                        @if(in_array($type->code, ['CA', 'INS', 'OTH']))
+                          <select
+                              name="deductions[{{ $type->id }}][payroll_period_id]"
+                              class="form-control"
+                          >
+                              <option value="">Select payroll period</option>
+                              @foreach($payrollPeriods as $period)
+                                  <option
+                                      value="{{ $period->id }}"
+                                      {{ old("deductions.{$type->id}.payroll_period_id") == $period->id ? 'selected' : '' }}
+                                  >
+                                      {{ \Carbon\Carbon::parse($period->date_from)->format('M d, Y') }}
+                                      -
+                                      {{ \Carbon\Carbon::parse($period->date_to)->format('M d, Y') }}
+                                  </option>
+                              @endforeach
+                          </select>
+                        @endif
                       </td>
 
                       <td class="text-center">
-                        <input type="hidden" name="deductions[{{ $dt->id }}][is_active]" value="0">
-                        <input type="checkbox"
-                               name="deductions[{{ $dt->id }}][is_active]"
-                               value="1"
-                               {{ old("deductions.{$dt->id}.is_active", 1) ? 'checked' : '' }}>
+                        <input
+                            type="checkbox"
+                            name="deductions[{{ $type->id }}][is_active]"
+                            value="1"
+                            {{ old("deductions.{$type->id}.is_active", 1) ? 'checked' : '' }}
+                        >
                       </td>
                     </tr>
-                  @empty
-                    <tr>
-                      <td colspan="3" class="text-center text-muted">No deduction types found. Add types first.</td>
-                    </tr>
-                  @endforelse
+                  @endforeach
                 </tbody>
               </table>
             </div>

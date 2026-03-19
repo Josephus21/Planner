@@ -74,13 +74,15 @@ class EmployeeController extends Controller
         $roles = Role::orderBy('title')->get();
         $schedules = Schedule::orderBy('name')->get();
         $deductionTypes = DeductionType::orderBy('name')->get();
+        $payrollPeriods = \App\Models\PayrollPeriod::orderByDesc('date_from')->get();
 
         return view('employees.create', compact(
             'companies',
             'departments',
             'roles',
             'schedules',
-            'deductionTypes'
+            'deductionTypes',
+            'payrollPeriods'
         ));
     }
 
@@ -115,7 +117,16 @@ class EmployeeController extends Controller
             'salary_type' => 'required|in:monthly,daily',
             'salary' => 'required|numeric|min:0',
             'user_password' => 'nullable|string|min:6',
+
             'deductions' => 'nullable|array',
+            'deductions.*.enabled' => 'nullable',
+            'deductions.*.amount' => 'nullable|numeric|min:0',
+            'deductions.*.total_amount' => 'nullable|numeric|min:0',
+            'deductions.*.installment_terms' => 'nullable|integer|min:1',
+            'deductions.*.remaining_terms' => 'nullable|integer|min:0',
+            'deductions.*.remaining_balance' => 'nullable|numeric|min:0',
+            'deductions.*.payroll_period_id' => 'nullable|exists:payroll_periods,id',
+            'deductions.*.is_active' => 'nullable',
         ]);
 
         if ($roleTitle !== 'developer') {
@@ -258,6 +269,7 @@ class EmployeeController extends Controller
         $roles = Role::orderBy('title')->get();
         $schedules = Schedule::orderBy('name')->get();
         $deductionTypes = DeductionType::orderBy('name')->get();
+        $payrollPeriods = \App\Models\PayrollPeriod::orderByDesc('date_from')->get();
 
         $today = now()->toDateString();
 
@@ -278,7 +290,8 @@ class EmployeeController extends Controller
             'roles',
             'schedules',
             'currentScheduleAssignment',
-            'deductionTypes'
+            'deductionTypes',
+            'payrollPeriods'
         ));
     }
 
@@ -325,7 +338,16 @@ class EmployeeController extends Controller
             'status' => 'required|string|in:active,inactive',
             'salary_type' => 'required|in:monthly,daily',
             'salary' => 'required|numeric|min:0',
+
             'deductions' => 'nullable|array',
+            'deductions.*.enabled' => 'nullable',
+            'deductions.*.amount' => 'nullable|numeric|min:0',
+            'deductions.*.total_amount' => 'nullable|numeric|min:0',
+            'deductions.*.installment_terms' => 'nullable|integer|min:1',
+            'deductions.*.remaining_terms' => 'nullable|integer|min:0',
+            'deductions.*.remaining_balance' => 'nullable|numeric|min:0',
+            'deductions.*.payroll_period_id' => 'nullable|exists:payroll_periods,id',
+            'deductions.*.is_active' => 'nullable',
         ]);
 
         if ($roleTitle !== 'developer') {
@@ -473,37 +495,83 @@ class EmployeeController extends Controller
 
     private function syncEmployeeDeductions(Employee $employee, array $deductions): void
     {
-        foreach ($deductions as $typeId => $data) {
-            $typeId = (int) $typeId;
+        $deductionTypes = DeductionType::all();
 
-            $enabled = isset($data['enabled']) && (int) $data['enabled'] === 1;
+        foreach ($deductionTypes as $type) {
+            $row = $deductions[$type->id] ?? [];
+            $enabled = !empty($row['enabled']) || !empty($row['selected']);
+
+            $existing = $employee->deductions()
+                ->where('deduction_type_id', $type->id)
+                ->first();
 
             if (!$enabled) {
-                EmployeeDeduction::where('employee_id', $employee->id)
-                    ->where('deduction_type_id', $typeId)
-                    ->delete();
+                if ($existing) {
+                    $existing->delete();
+                }
                 continue;
             }
 
-            $amount = (float) ($data['amount'] ?? 0);
-            $isActive = isset($data['is_active']) && (int) $data['is_active'] === 1;
+            $payload = [
+                'amount' => isset($row['amount']) ? (float) $row['amount'] : 0,
+                'rate' => null,
+                'is_active' => !empty($row['is_active']) ? 1 : 0,
+                'total_amount' => null,
+                'installment_terms' => null,
+                'remaining_terms' => null,
+                'remaining_balance' => null,
+                'deduction_mode' => 'scheduled',
+                'payroll_period_id' => null,
+            ];
 
-            if ($amount <= 0) {
-                EmployeeDeduction::where('employee_id', $employee->id)
-                    ->where('deduction_type_id', $typeId)
-                    ->delete();
-                continue;
+            /**
+             * RECURRING
+             * SSS / PHIC / PAGIBIG
+             */
+            if (in_array($type->code, ['SSS', 'PHIC', 'PAGIBIG'])) {
+                $payload['deduction_mode'] = 'recurring';
+
+                if ($type->method === 'percent') {
+                    $payload['rate'] = isset($row['amount']) ? (float) $row['amount'] : 0;
+                }
             }
 
-            EmployeeDeduction::updateOrCreate(
-                [
-                    'employee_id' => $employee->id,
-                    'deduction_type_id' => $typeId,
-                ],
-                [
-                    'amount' => $amount,
-                    'is_active' => $isActive,
-                ]
+            /**
+             * TERM-BASED
+             * LOAN / INSTALLMENT
+             */
+            if (in_array($type->code, ['LOAN', 'INST'])) {
+                $totalAmount = isset($row['total_amount']) ? (float) $row['total_amount'] : 0;
+                $installmentTerms = isset($row['installment_terms']) ? (int) $row['installment_terms'] : 0;
+                $remainingTerms = isset($row['remaining_terms']) && $row['remaining_terms'] !== ''
+                    ? (int) $row['remaining_terms']
+                    : $installmentTerms;
+
+                $remainingBalance = isset($row['remaining_balance']) && $row['remaining_balance'] !== ''
+                    ? (float) $row['remaining_balance']
+                    : $totalAmount;
+
+                $payload['deduction_mode'] = 'term_based';
+                $payload['total_amount'] = $totalAmount;
+                $payload['installment_terms'] = $installmentTerms;
+                $payload['remaining_terms'] = $remainingTerms;
+                $payload['remaining_balance'] = $remainingBalance;
+            }
+
+            /**
+             * SCHEDULED
+             * CA / INS / OTH
+             */
+            if (in_array($type->code, ['CA', 'INS', 'OTH'])) {
+                $payload['deduction_mode'] = 'scheduled';
+                $payload['payroll_period_id'] = !empty($row['payroll_period_id'])
+                    ? (int) $row['payroll_period_id']
+                    : null;
+            }
+
+            $employee->deductions()->updateOrCreate(
+                ['deduction_type_id' => $type->id],
+                $payload
             );
         }
     }
